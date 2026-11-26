@@ -2,6 +2,16 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — laptop fit pass for the Mac window (Claude)
+- **Done:** Steps and Song now fit 1440x830, 1470x880 and 1280x760 with the header on one row and all 16 steps of one bar
+  showing (grid 812/812 at 1280, no sideways scroll). Track list and panel widths use clamp() on vw, header gaps and
+  button padding shrink a little on narrower windows, the Scale list is narrower, gaps between step groups are a bit
+  smaller (cells stay `--touch`, never under 44 px). Swing (More mode) moved from the header to the bottom bar so More
+  no longer wraps the header. Dialogs (Help, Skin, Seeds link) fit at 1280x760 and 1024x640.
+- **Tested:** headless Chrome, demo song, 1 bar, Bass selected, Simple and More, all three skins: no page scroll, no
+  control under 44 px, nothing past the right edge, no console errors. At the Electron minimum (1024x640) the header
+  wraps to two rows and the grid scrolls sideways; that is expected there.
+
 ## 2026-11-26 — desktop app (Mac) built by GitHub; track controls merged (Claude)
 - **Desktop:** `desktop/` wraps the app in Electron (setup copied from ...Seeds; see `desktop/README.md`). Served from a
   secure `app://spores/` scheme because modules / AudioWorklet / Worker / wasm refuse `file://`. MIDI and audio

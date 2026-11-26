@@ -55,15 +55,16 @@ p { margin: 0; }
 .screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100vh; }
 
 /* header */
-.hdr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 12px; border-bottom: 1px solid var(--edge); }
+.hdr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px clamp(6px, 0.8vw, 10px); padding: 8px clamp(8px, 1vw, 12px); border-bottom: 1px solid var(--edge); }
 .app-name { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin-right: 6px; }
 .hgroup { display: flex; align-items: center; gap: 6px; }
-.hgroup + .hgroup { border-left: 1px solid var(--track); padding-left: 10px; }
+.hgroup + .hgroup { border-left: 1px solid var(--track); padding-left: clamp(6px, 0.8vw, 10px); }
 .field { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.field select, .hgroup select { min-width: 0; }
 .field input { width: 68px; color: var(--ink); }
-.field input[type=range] { width: 110px; height: var(--touch); padding: 0; border: 0; background: transparent; accent-color: var(--video); }
+.field input[type=range] { width: clamp(70px, 7vw, 110px); height: var(--touch); padding: 0; border: 0; background: transparent; accent-color: var(--video); }
 .field .pval { min-width: 38px; }
-.tb { min-height: var(--touch); min-width: var(--touch); padding: 6px 14px; background: var(--panel-2); border: 1px solid var(--edge);
+.tb { min-height: var(--touch); min-width: var(--touch); padding: 6px clamp(8px, 1vw, 14px); background: var(--panel-2); border: 1px solid var(--edge);
   border-radius: var(--radius); font-weight: 500; cursor: pointer; }
 .tb:hover:not(:disabled) { background: var(--track); }
 .tb:disabled { color: var(--muted); cursor: default; opacity: .55; }
@@ -75,7 +76,7 @@ p { margin: 0; }
 .seg .tb:first-child { border-left-width: 1px; }
 
 /* workspace: track list · step grid · settings panel */
-.workspace { display: grid; grid-template-columns: 200px minmax(0, 1fr) 310px; min-height: 0; }
+.workspace { display: grid; grid-template-columns: clamp(164px, 14.6vw, 200px) minmax(0, 1fr) clamp(256px, 22vw, 310px); min-height: 0; }
 .tracks { overflow: auto; border-right: 1px solid var(--edge); padding: 6px; display: flex; flex-direction: column; gap: 6px; }
 .track { display: flex; align-items: center; min-height: 54px; border: 1px solid var(--edge); background: var(--panel); cursor: pointer; }
 .track:hover { background: var(--panel-2); }
@@ -99,7 +100,7 @@ p { margin: 0; }
 .gridwrap { overflow: auto; min-width: 0; }
 .grid { padding-bottom: 12px; }
 .srow { display: flex; }
-.lane { display: flex; gap: 4px; padding: 5px 10px; }
+.lane { display: flex; gap: 4px; padding: 5px 8px; }
 .lane.drum { --rowc: var(--gate); }
 .lane.synth { --rowc: var(--audio); }
 .lane.midi { --rowc: var(--video); }
@@ -107,8 +108,8 @@ p { margin: 0; }
 .cell { width: var(--touch); min-width: var(--touch); height: var(--touch); padding: 0; border: 1px solid var(--edge);
   border-radius: var(--radius); background: var(--panel); font-size: 12px; font-weight: 600; cursor: pointer; position: relative; }
 .cell:hover { background: var(--panel-2); }
-.cell.beatstart { margin-left: 8px; }
-.cell.barstart { margin-left: 18px; }
+.cell.beatstart { margin-left: 6px; }
+.cell.barstart { margin-left: 14px; }
 .cell.on, .cell.on:hover { background: linear-gradient(var(--top, var(--rowc)), var(--bottom, var(--rowc))); color: var(--txt, var(--panel)); }
 .cell.sel { outline: 2px solid var(--selc); outline-offset: 2px; }
 .cell.now { outline: 3px solid var(--selc); outline-offset: 2px; }
@@ -123,12 +124,12 @@ p { margin: 0; }
 .mlabel-t { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .mlabel .tb { min-width: var(--touch); padding: 0 8px; }
 .mnote { min-width: 46px; font-weight: 600; }
-.mlane { display: flex; gap: 4px; padding: 4px 10px 8px; }
+.mlane { display: flex; gap: 4px; padding: 4px 8px 8px; }
 .mcell { position: relative; width: var(--touch); min-width: var(--touch); height: 78px; padding: 0; border: 0;
   background: transparent; cursor: pointer; }
 .mcell::before { content: ''; position: absolute; left: 0; right: 0; bottom: 14px; height: 1px; background: var(--track); }
-.mcell.beatstart { margin-left: 8px; }
-.mcell.barstart { margin-left: 18px; }
+.mcell.beatstart { margin-left: 6px; }
+.mcell.barstart { margin-left: 14px; }
 .mbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: 15px; width: 22px; height: var(--h, 12px);
   border: 1px solid var(--edge); background: linear-gradient(var(--top), var(--bottom)); }
 .mcell.sel .mbar { outline: 2px solid var(--selc); outline-offset: 1px; }
@@ -227,3 +228,5 @@ p { margin: 0; }
   .panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--edge); max-height: 40vh; }
   .hgroup + .hgroup { border-left: 0; padding-left: 0; }
 }
+/* laptop windows: the scale list only needs to show its name, so it gives its width back to the header */
+.hdr select[aria-label=Scale] { width: clamp(100px, 9vw, 150px); }
