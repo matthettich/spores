@@ -55,7 +55,7 @@ await p.evaluate(() => window.spores.store.edit('test', s => {
   s.tracks[7].type = 'midi'; s.tracks[7].midi = {port: 'iac', ch: 2, clock: false};
   s.scenes.A.steps[s.tracks[7].id] = [{on: true, deg: 2, vel: 90, chance: 100}];
 }));
-await p.click('#play');
+await p.evaluate(() => window.spores.engine.play('scene', Object.keys(window.spores.store.get().scenes)[0]));   // (the Play button's id changed with the phase 2 screen)
 await new Promise(r => setTimeout(r, 2050));
 const m = await p.evaluate(async () => { window.spores.engine.stop(); await new Promise(r => setTimeout(r, 300)); return window.__sent; });
 const kind = d => d[0] === 0xF8 ? 'clock' : d[0] === 0xFA ? 'start' : d[0] === 0xFC ? 'stop' : (d[0] & 0xF0) === 0x90 ? 'on' : (d[0] & 0xF0) === 0x80 ? 'off' : '?';

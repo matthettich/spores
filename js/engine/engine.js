@@ -12,16 +12,20 @@
  */
 import {degToMidi} from '../scale.js';
 import {resolve, ENGINES} from './sounds.js';
+import {cvValue, gateValue, DEFAULT_FS, CV_CHANNELS} from './cv.js';
 
 export const STEPS_PER_BAR = 16;
 
-export function compile(song){
+/* opts.fs: CV full-scale volts on this computer (cv.js). */
+export function compile(song, opts = {}){
+  const fs = opts.fs || DEFAULT_FS;
   const tracks = song.tracks.map(t => {
     const o = {id: t.id, type: t.type, vol: t.vol ?? 0.8, mute: !!t.mute, solo: !!t.solo, len: song.mode === 'more' ? (t.len | 0) : 0};
     if (t.type === 'drum' || t.type === 'synth'){
       const r = resolve(t.sound, t.params);
       o.engine = r.engine; o.vals = r.vals; o.rendered = !!ENGINES[r.engine].rendered; if (r.note != null) o.drumNote = r.note;
     }
+    if (t.type === 'cv'){ const cv = t.cv || {}; o.cvPitch = (cv.pitch | 0) - 1; o.cvGate = (cv.gate | 0) - 1; o.gateV = gateValue(fs); }
     return o;
   });
   const scenes = {};
@@ -33,6 +37,7 @@ export function compile(song){
         const st = lane[i]; if (!st || !st.on) continue;
         out[i] = {note: t.type === 'drum' ? (t.seedsNote ?? 36) : degToMidi(st.deg || 0, song.key, song.scale, t.oct ?? 3),
           vel: st.vel ?? 100, chance: song.mode === 'more' ? (st.chance ?? 100) : 100};
+        if (t.type === 'cv') out[i].cv = cvValue(out[i].note, t.cv, t.oct ?? 3, fs);
       }
       return out;
     })};
@@ -45,9 +50,15 @@ export function compile(song){
 export async function createEngine(){
   const ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: 'interactive'});
   await ctx.audioWorklet.addModule(new URL('./worklet.js', import.meta.url));
-  const node = new AudioWorkletNode(ctx, 'spores-engine', {numberOfInputs: 0, outputChannelCount: [2]});
+  // output 0: the stereo mix (→ channels 1–2); output 1: CV, straight to the interface's channels, no gain on the way
+  const node = new AudioWorkletNode(ctx, 'spores-engine', {numberOfInputs: 0, numberOfOutputs: 2, outputChannelCount: [2, CV_CHANNELS]});
   const master = ctx.createGain(); master.gain.value = 0.9;
-  node.connect(master).connect(ctx.destination);
+  master.channelCount = 2; master.channelCountMode = 'explicit';
+  const openChannels = () => { const d = ctx.destination; d.channelInterpretation = 'discrete'; try { d.channelCount = Math.max(2, d.maxChannelCount); } catch (e) {} };
+  openChannels();
+  node.connect(master, 0).connect(ctx.destination);
+  node.connect(ctx.destination, 1);
+  let cvFs = DEFAULT_FS;
 
   // the pump instruments' sound code: compiled here, handed to the worklet (it can't fetch). Without it, COIL / ORBIT /
   // FOLD / BOING tracks are silent and everything else plays as usual.
@@ -126,11 +137,17 @@ export async function createEngine(){
     on(k, f){ subs[k].push(f); return () => { subs[k] = subs[k].filter(g => g !== f); }; },
     wasmReady,
     setSong(s){
-      song = s; compiled = compile(s); node.port.postMessage({t: 'song', song: compiled});
+      song = s; compiled = compile(s, {fs: cvFs}); node.port.postMessage({t: 'song', song: compiled});
       clearTimeout(recTimer); recTimer = setTimeout(() => planRecordings(compiled), rec.size ? 150 : 0);
     },
     async play(mode = 'scene', scene = 'A', block = 0){ if (ctx.state !== 'running') await ctx.resume(); node.port.postMessage({t: 'play', mode, scene, block}); },
     stop(){ node.port.postMessage({t: 'stop'}); },
+    /* CV and the output device (the interface CV leaves through; the music plays on its channels 1–2) */
+    get outputChannels(){ return ctx.destination.maxChannelCount; },
+    async setOutputDevice(id){ if (!ctx.setSinkId) return false; try { await ctx.setSinkId(id || ''); } catch (e) { console.warn('setSinkId', e); return false; } openChannels(); return true; },
+    setCvScale(fs){ cvFs = +fs > 0 ? +fs : DEFAULT_FS; if (song) this.setSong(song); },
+    get cvScale(){ return cvFs; },
+    cvHold(ch, value){ node.port.postMessage({t: 'cvtest', ch, value}); },   // ch from 0; value null = let go
     scene(k){ node.port.postMessage({t: 'scene', scene: k}); },
     // play one track now: a drum hit, or a synth note at a scale step
     async hit(ti, deg = 0, vel = 100){
