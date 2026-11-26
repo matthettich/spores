@@ -76,6 +76,24 @@ p { margin: 0; }
 .cell.sel { outline: 2px solid var(--selc); outline-offset: 2px; }
 .cell.now { outline: 3px solid var(--selc); outline-offset: 2px; }
 
+/* melody lane: under the grid, for the selected Synth / MIDI / CV track */
+.melody { position: sticky; bottom: 0; z-index: 2; background: var(--bench); border-top: 1px solid var(--edge); }
+.mlabel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 10px 0; }
+.mlabel-t { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.mlabel .tb { min-width: var(--touch); padding: 0 8px; }
+.mnote { min-width: 46px; font-weight: 600; }
+.mlane { display: flex; gap: 4px; padding: 4px 10px 8px; }
+.mcell { position: relative; width: var(--touch); min-width: var(--touch); height: 78px; padding: 0; border: 0;
+  background: transparent; cursor: pointer; }
+.mcell::before { content: ''; position: absolute; left: 0; right: 0; bottom: 14px; height: 1px; background: var(--track); }
+.mcell.beatstart { margin-left: 8px; }
+.mcell.barstart { margin-left: 18px; }
+.mbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: 15px; width: 22px; height: var(--h, 12px);
+  border: 1px solid var(--edge); background: linear-gradient(var(--top), var(--bottom)); }
+.mcell.sel .mbar { outline: 2px solid var(--selc); outline-offset: 1px; }
+.mcell.now { outline: 2px solid var(--selc); outline-offset: -2px; }
+.mname { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 10px; color: var(--muted); }
+
 /* right panel */
 .panel { overflow: auto; border-left: 1px solid var(--edge); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
 .phead { border-bottom: 1px solid var(--track); padding-bottom: 8px; }
