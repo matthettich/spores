@@ -125,6 +125,9 @@ p { margin: 0; }
   box-shadow: 4px 4px 0 var(--track); }
 .menu button { min-height: var(--touch); padding: 6px 10px; text-align: left; background: transparent; border: 0; cursor: pointer; }
 .menu button:hover { background: var(--panel-2); }
+.menu.up { top: auto; bottom: calc(100% + 4px); box-shadow: 4px -4px 0 var(--track); }
+.checkrow { display: flex; align-items: center; gap: 10px; min-height: var(--touch); font-size: 13px; cursor: pointer; }
+.checkrow input[type=checkbox] { min-height: 0; width: 22px; height: 22px; margin: 0; accent-color: var(--ink); }
 .scrim { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px;
   background: color-mix(in srgb, var(--ink) 30%, transparent); }
 .dialog { width: min(420px, 100%); padding: 16px; display: flex; flex-direction: column; gap: 12px;

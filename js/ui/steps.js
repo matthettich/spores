@@ -16,7 +16,7 @@ import {el} from './dom.js';
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-export function mountSteps(root, {store, engine, openSong}){
+export function mountSteps(root, {store, engine, midi, openSong}){
   const state = {scene: 'A', track: 0, step: null};
 
   /* ---- header: Play, Tempo, Key + scale, scenes, Song / Undo, Simple / More ---- */
@@ -88,19 +88,40 @@ export function mountSteps(root, {store, engine, openSong}){
   gridWrap.addEventListener('scroll', () => { tracksEl.scrollTop = gridWrap.scrollTop; });
   tracksEl.addEventListener('scroll', () => { gridWrap.scrollTop = tracksEl.scrollTop; });
 
-  /* ---- bottom: add track, bars, note colours ---- */
-  const addBtn = el('button', {class: 'tb', onclick: addTrack}, '+ Add track');
+  /* ---- bottom: add track (a menu: which kind), bars, note colours ---- */
+  const addMenu = el('div', {class: 'menu up', role: 'menu', hidden: true});
+  const addBtn = el('button', {class: 'tb', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
+    onclick: e => { e.stopPropagation(); addMenu.hidden ? openAdd() : closeAdd(); }}, '+ Add track');
+  for (const [type, label] of [['drum', 'Drum track'], ['synth', 'Synth track'], ['midi', 'MIDI track']])
+    addMenu.append(el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack(type); }}, label));
+  const addWrap = el('div', {class: 'menu-wrap'}, addBtn, addMenu);
+  function openAdd(){
+    addMenu.hidden = false;
+    addBtn.setAttribute('aria-expanded', 'true');
+    document.addEventListener('pointerdown', outsideAdd, true);
+    document.addEventListener('keydown', escAdd, true);
+  }
+  function closeAdd(){
+    if (addMenu.hidden) return;
+    addMenu.hidden = true;
+    addBtn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('pointerdown', outsideAdd, true);
+    document.removeEventListener('keydown', escAdd, true);
+  }
+  function outsideAdd(e){ if (!addWrap.contains(e.target)) closeAdd(); }
+  function escAdd(e){ if (e.key === 'Escape') closeAdd(); }
   const barBtns = [1, 2, 3, 4].map(n => el('button', {class: 'tb', 'aria-label': `${n} bar${n > 1 ? 's' : ''}`,
     onclick: () => setBars(n)}, String(n)));
   const keyEl = el('div', {class: 'key'});
   const bottom = el('footer', {class: 'bottom'},
-    addBtn,
+    addWrap,
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Bars'), ...barBtns),
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Note colours'), keyEl));
 
   root.append(header, workspace, bottom);
   mountFileMenu(fileWrap, {store});
   const panel = mountPanel(panelEl, {store, engine, state});
+  midi.onChange(() => drawTracks());   // a port plugged in or out: show its name in the track list
 
   /* ---- actions ---- */
   function togglePlay(){
@@ -131,12 +152,19 @@ export function mountSteps(root, {store, engine, openSong}){
     store.edit('Bars', s => { const sc = s.scenes[state.scene]; if (sc) sc.bars = clamp(n, 1, 4); });
   }
 
-  function addTrack(){
+  // a new track of the kind picked in the menu: the first sound not already in use, a numbered name for MIDI
+  function addTrack(type = 'drum'){
     if (store.get().tracks.length >= MAX_TRACKS) return;
     store.edit('Add track', s => {
       const used = new Set(s.tracks.map(t => t.sound));
-      const sound = SOUND_LISTS.drum.find(n => !used.has(n)) || 'Kick';
-      s.tracks.push(newTrack('drum', sound));
+      const n = s.tracks.filter(t => t.type === type).length + 1;
+      if (type === 'midi'){
+        const t = newTrack('midi'); t.name = 'MIDI ' + n;
+        s.tracks.push(t);
+      } else {
+        const sound = (SOUND_LISTS[type] || []).find(x => !used.has(x)) || (SOUND_LISTS[type] || ['Kick'])[0];
+        s.tracks.push(newTrack(type, sound));
+      }
     });
     state.track = store.get().tracks.length - 1; state.step = null;
     sync();
@@ -183,10 +211,15 @@ export function mountSteps(root, {store, engine, openSong}){
       scenesEl.append(el('button', {class: 'tb scn', title: 'Add a scene', 'aria-label': 'Add a scene', onclick: addScene}, '+'));
   }
 
+  // the name of a MIDI port, even after a reload changed its id (js/midi.js looks ports up by id, then by name)
+  const portName = id => (midi.outputs().find(o => o.id === id || o.name === id) || {}).name || id;
+
   function drawTracks(s = store.get()){
     tracksEl.innerHTML = '';
     s.tracks.forEach((t, ti) => {
-      const sub = [TYPE[t.type] || t.type]; if (t.sound) sub.push(t.sound);
+      const sub = [TYPE[t.type] || t.type];
+      if (t.sound) sub.push(t.sound);
+      if (t.type === 'midi') sub.push(t.midi && t.midi.port ? portName(t.midi.port) : 'no port yet', 'ch ' + ((t.midi && t.midi.ch) || 1));
       const mute = el('button', {class: 'mute' + (t.mute ? ' on' : ''), title: 'Mute this track',
         'aria-label': 'Mute ' + (t.name || TYPE[t.type]), 'aria-pressed': t.mute ? 'true' : 'false',
         onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, 'M');

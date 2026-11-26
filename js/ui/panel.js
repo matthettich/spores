@@ -1,8 +1,8 @@
 /* js/ui/panel.js: the right-hand track / step panel.
  *
  * Selected track: sound picker with Prev / Next (grouped by engine), its sound settings as sliders (Simple = the
- * few main ones, More = all), volume. MIDI and CV tracks just say what they are for now (phases 6 and 7).
- * Selected step: Note / Velocity / Chance, read-only (editing is phase 4). See docs/SPEC.md "Screens".
+ * few main ones, More = all), MIDI port / channel / clock for a MIDI track, volume. CV tracks say what they are for
+ * (phase 7). Selected step: Note / Velocity / Chance. See docs/SPEC.md "Screens".
  *
  * Sound settings come from settingsFor(track.sound) → {main, all}; `ch` = names per whole value (a menu),
  * `log: true` = a logarithmic slider. A change is store.edit('Sound setting', s => { t.params[key] = value }), so it
@@ -14,6 +14,7 @@ import {ENGINES, SOUNDS, settingsFor} from '../engine/sounds.js';
 import {degToMidi, midiName} from '../scale.js';
 import {nudgeNote, setChance, setVelocity, stepAt} from './stepedit.js';
 import {SOUND_LISTS} from '../store.js';
+import * as midi from '../midi.js';
 import {el} from './dom.js';
 
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
@@ -52,13 +53,41 @@ export function mountPanel(root, {store, engine, state}){
       soundPicker(t, ti);
       settings(s, t, ti);
     } else if (t.type === 'midi'){
-      root.append(el('p', {class: 'note'}, 'A MIDI track. Its port and channel arrive in phase 6.'));
+      midiTrack(t, ti);
     } else if (t.type === 'cv'){
       root.append(el('p', {class: 'note'}, 'A CV track. The pitch and gate outputs arrive in phase 7.'));
     }
     volume(t, ti);
     if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
     step(s, t, ti);
+  }
+
+  /* ---- MIDI track: which port, which channel, and its own clock ---- */
+  function midiTrack(t, ti){
+    root.append(el('div', {class: 'psec'}, 'MIDI output'));
+    const outs = midi.outputs();
+    const sel = el('select', {'aria-label': 'MIDI port'});
+    sel.append(el('option', {value: ''}, outs.length ? 'No port yet' : 'No MIDI ports found'));
+    for (const o of outs) sel.append(el('option', {value: o.id}, o.name));
+    // a saved port that is not plugged in right now stays in the list, so it comes back when it is
+    if (t.midi.port && !outs.some(o => o.id === t.midi.port || o.name === t.midi.port))
+      sel.append(el('option', {value: t.midi.port}, t.midi.port));
+    sel.value = t.midi.port || '';
+    sel.addEventListener('change', () => store.edit('MIDI port', s => { s.tracks[ti].midi.port = sel.value; }));
+    root.append(el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Port'), sel));
+
+    const ch = el('select', {'aria-label': 'MIDI channel'});
+    for (let i = 1; i <= 16; i++) ch.append(el('option', {value: String(i)}, 'Channel ' + i));
+    ch.value = String(t.midi.ch || 1);
+    ch.addEventListener('change', () => store.edit('MIDI channel', s => { s.tracks[ti].midi.ch = +ch.value; }));
+    root.append(el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Channel'), ch));
+
+    const clock = el('input', {type: 'checkbox', id: 'midi-clock-' + ti});
+    clock.checked = !!t.midi.clock;
+    clock.addEventListener('change', () => store.edit('MIDI clock', s => { s.tracks[ti].midi.clock = clock.checked; }));
+    root.append(el('label', {class: 'checkrow', for: 'midi-clock-' + ti}, clock, el('span', {}, 'Send clock and Start / Stop to this port')));
+    root.append(el('p', {class: 'note'}, 'A MIDI track makes no sound of its own: the steps go out of the port you pick.'));
+    if (!midi.ready()) root.append(el('p', {class: 'note'}, 'MIDI is not available in this browser (Chrome has it).'));
   }
 
   /* ---- sound ---- */
@@ -213,9 +242,8 @@ export function mountPanel(root, {store, engine, state}){
       });
     }
 
-    root.append(
-      el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Step'), stepNum),
-      hint, noteRow, velRow, chanceRow || null);
+    root.append(el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Step'), stepNum), hint, noteRow, velRow);
+    if (chanceRow) root.append(chanceRow);
 
     const paint = (song, tr) => {
       const st = state.step == null ? null : stepAt(song, where());
@@ -240,6 +268,12 @@ export function mountPanel(root, {store, engine, state}){
     paint(s, t);
     updaters.push(paint);
   }
+
+  // a MIDI port plugged in or out while a MIDI track is open: list it (no leak: one subscription per panel)
+  midi.onChange(() => {
+    const t = store.get().tracks[state.track];
+    if (t && t.type === 'midi'){ sig = ''; refresh(); }
+  });
 
   refresh();
   return {refresh};
