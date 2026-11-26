@@ -91,6 +91,10 @@ p { margin: 0; }
 .mute { min-width: var(--touch); min-height: var(--touch); align-self: stretch; border: 0; border-left: 1px solid var(--edge);
   background: transparent; font-weight: 700; color: var(--muted); cursor: pointer; }
 .mute.on { background: var(--gate); color: var(--panel); }
+.solo.on { background: var(--audio); color: var(--panel); }
+/* while any track is soloed, the others are silent: show it */
+.track.quiet .tbar, .track.quiet .tinfo { opacity: .4; }
+.lane.quiet { opacity: .4; }
 
 .gridwrap { overflow: auto; min-width: 0; }
 .grid { padding-bottom: 12px; }
@@ -134,6 +138,9 @@ p { margin: 0; }
 /* right panel */
 .panel { overflow: auto; border-left: 1px solid var(--edge); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
 .phead { border-bottom: 1px solid var(--track); padding-bottom: 8px; }
+.pheadrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pdel { margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--track); }
+.tb.quiet { background: transparent; color: var(--muted); border-color: var(--track); }
 .ptitle { font-size: 17px; font-weight: 600; }
 .psec { margin-top: 4px; padding-bottom: 4px; border-bottom: 1px solid var(--track); font-size: 12px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }

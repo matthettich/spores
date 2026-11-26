@@ -18,6 +18,7 @@ import {ask, openDialog} from './dialog.js';
 import * as midi from '../midi.js';
 import {el} from './dom.js';
 import {cvSection} from './cv.js';
+import {renameTrack, deleteTrack} from './trackctl.js';
 
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -41,7 +42,7 @@ export function mountPanel(root, {store, engine, state}){
     const ti = Math.max(0, Math.min(state.track, s.tracks.length - 1));
     state.track = ti;
     const t = s.tracks[ti];
-    const next = [ti, t.id, t.type, t.sound || '', s.mode, state.step, state.scene].join('|');
+    const next = [ti, t.id, t.name, s.tracks.length, t.type, t.sound || '', s.mode, state.step, state.scene].join('|');
     if (next !== sig){ sig = next; build(s, t, ti); return; }
     for (const f of updaters) f(s, t);
   }
@@ -49,7 +50,9 @@ export function mountPanel(root, {store, engine, state}){
   function build(s, t, ti){
     root.innerHTML = ''; updaters = [];
     root.append(el('div', {class: 'phead'},
-      el('div', {class: 'ptitle'}, t.name || TYPE[t.type] || 'Track'),
+      el('div', {class: 'pheadrow'},
+        el('div', {class: 'ptitle'}, t.name || TYPE[t.type] || 'Track'),
+        el('button', {class: 'tb', title: 'Give this track a new name', onclick: () => renameTrack(store, t.id)}, 'Rename')),
       el('div', {class: 'muted small'}, t.sound ? `${TYPE[t.type]} · ${t.sound}` : (TYPE[t.type] || ''))));
 
     if (t.type === 'drum' || t.type === 'synth'){
@@ -65,6 +68,11 @@ export function mountPanel(root, {store, engine, state}){
     if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
     if (s.mode === 'more' && t.type === 'drum') seedsNote(t, ti);
     step(s, t, ti);
+    const last = s.tracks.length < 2;
+    root.append(el('div', {class: 'pdel'},
+      el('button', {class: 'tb quiet', disabled: last,
+        title: last ? 'A song needs at least one track, so the last one stays' : 'Remove this track and its steps (you will be asked first)',
+        onclick: () => deleteTrack(store, state, t.id)}, 'Delete track')));
   }
 
   /* ---- sound presets (More): a sound plus its settings, kept in the song and put on any track of the same kind ---- */
