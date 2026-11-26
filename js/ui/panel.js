@@ -1,8 +1,196 @@
-/* js/ui/panel.js: the right-hand track / step panel (phase 2 and 4).
- * Selected track: sound picker with Prev / Next (drum, synth), port / channel / clock (MIDI), pitch / gate outputs and
- * Tune CV… (CV), volume. Selected step: Note / Velocity / Chance. See docs/SPEC.md "Screens".
- * Sound names: SOUND_LISTS in store.js (SOUNDS in js/engine/sounds.js has each one's engine, for grouping).
- * Sound settings (the "experiment" knobs): settingsFor(track.sound) → {main, all}; Simple shows `main`, More shows `all`.
- * A setting change is store.edit('Sound setting', s => { track.params[r.s] = value; }); the engine follows. Choosing a
- * new sound clears track.params. Hear a sound: engine.hit(trackIndex, deg). */
-export function mountPanel(root, ctx){ return {select(){}}; }
+/* js/ui/panel.js: the right-hand track / step panel.
+ *
+ * Selected track: sound picker with Prev / Next (grouped by engine), its sound settings as sliders (Simple = the
+ * few main ones, More = all), volume. MIDI and CV tracks just say what they are for now (phases 6 and 7).
+ * Selected step: Note / Velocity / Chance, read-only (editing is phase 4). See docs/SPEC.md "Screens".
+ *
+ * Sound settings come from settingsFor(track.sound) → {main, all}; `ch` = names per whole value (a menu),
+ * `log: true` = a logarithmic slider. A change is store.edit('Sound setting', s => { t.params[key] = value }), so it
+ * is undoable; the engine hears it on the next setSong. Picking a sound clears track.params and plays it.
+ * The panel is rebuilt only when the selection, the sound or the mode changes; otherwise values update in place, so
+ * dragging a slider is not interrupted.
+ */
+import {ENGINES, SOUNDS, settingsFor} from '../engine/sounds.js';
+import {degToMidi, midiName} from '../scale.js';
+import {SOUND_LISTS} from '../store.js';
+import {el} from './dom.js';
+
+const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
+
+// slider position 0…1 ↔ value, for settings that span several decades (min must be above 0 for a log scale to work)
+const toPos = (r, v) => r.log && r.min > 0 ? Math.log(v / r.min) / Math.log(r.max / r.min) : (v - r.min) / (r.max - r.min);
+const fromPos = (r, p) => r.log && r.min > 0 ? r.min * Math.pow(r.max / r.min, p) : r.min + p * (r.max - r.min);
+
+function fmt(r, v){
+  if (r.ch) return r.ch[Math.round(v)] ?? String(v);
+  const n = r.int ? Math.round(v) : Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100;
+  return r.unit ? `${n} ${r.unit}` : String(n);
+}
+
+export function mountPanel(root, {store, engine, state}){
+  let sig = '', updaters = [];
+
+  function refresh(){
+    const s = store.get();
+    if (!s.tracks.length){ root.innerHTML = ''; return; }
+    const ti = Math.max(0, Math.min(state.track, s.tracks.length - 1));
+    state.track = ti;
+    const t = s.tracks[ti];
+    const next = [ti, t.id, t.type, t.sound || '', s.mode, state.step, state.scene].join('|');
+    if (next !== sig){ sig = next; build(s, t, ti); return; }
+    for (const f of updaters) f(s, t);
+  }
+
+  function build(s, t, ti){
+    root.innerHTML = ''; updaters = [];
+    root.append(el('div', {class: 'phead'},
+      el('div', {class: 'ptitle'}, t.name || TYPE[t.type] || 'Track'),
+      el('div', {class: 'muted small'}, t.sound ? `${TYPE[t.type]} · ${t.sound}` : (TYPE[t.type] || ''))));
+
+    if (t.type === 'drum' || t.type === 'synth'){
+      soundPicker(t, ti);
+      settings(s, t, ti);
+    } else if (t.type === 'midi'){
+      root.append(el('p', {class: 'note'}, 'A MIDI track. Its port and channel arrive in phase 6.'));
+    } else if (t.type === 'cv'){
+      root.append(el('p', {class: 'note'}, 'A CV track. The pitch and gate outputs arrive in phase 7.'));
+    }
+    volume(t, ti);
+    step(s, t, ti);
+  }
+
+  /* ---- sound ---- */
+  function pick(name, ti){
+    if (!name) return;
+    store.edit('Sound', s => { const t = s.tracks[ti]; t.sound = name; t.params = {}; });
+    Promise.resolve(engine.hit(ti, 0)).catch(() => {});
+  }
+
+  function soundPicker(t, ti){
+    const list = SOUND_LISTS[t.type] || [];
+    if (!list.length) return;
+    const sel = el('select', {'aria-label': 'Sound'});
+    const groups = new Map();
+    for (const n of list){
+      const e = (SOUNDS[n] && SOUNDS[n].engine) || 'other';
+      if (!groups.has(e)) groups.set(e, []);
+      groups.get(e).push(n);
+    }
+    for (const [e, names] of groups){
+      const g = el('optgroup', {label: (ENGINES[e] && ENGINES[e].label) || e});
+      for (const n of names) g.append(el('option', {value: n}, n));
+      sel.append(g);
+    }
+    sel.value = t.sound;
+    sel.addEventListener('change', () => pick(sel.value, ti));
+    const step = d => {
+      const i = list.indexOf(t.sound);
+      const n = list[(i + d + list.length) % list.length];
+      if (n && n !== t.sound) pick(n, ti);
+    };
+    root.append(el('div', {class: 'psec'}, 'Sound'), el('div', {class: 'sndrow'},
+      el('button', {class: 'tb', title: 'Previous sound', 'aria-label': 'Previous sound', onclick: () => step(-1)}, '‹'),
+      sel,
+      el('button', {class: 'tb', title: 'Next sound', 'aria-label': 'Next sound', onclick: () => step(1)}, '›')));
+  }
+
+  /* ---- sound settings ---- */
+  function settings(s, t, ti){
+    const kinds = settingsFor(t.sound);
+    const rows = s.mode === 'more' ? kinds.all : kinds.main;
+    if (!rows || !rows.length) return;
+    root.append(el('div', {class: 'psec'}, s.mode === 'more' ? 'All sound settings' : 'Sound settings'));
+    for (const r of rows) root.append(settingRow(r, t, ti));
+  }
+
+  function apply(r, v, ti){
+    store.edit('Sound setting', s => {
+      const t = s.tracks[ti];
+      t.params = t.params || {};
+      t.params[r.s] = v;
+    });
+  }
+
+  function settingRow(r, t, ti){
+    const cur = t.params[r.s] ?? r.def ?? r.min;
+
+    if (r.ch){   // a menu: one name per whole value
+      const sel = el('select', {'aria-label': r.l});
+      r.ch.forEach((name, i) => sel.append(el('option', {value: String(i)}, name)));
+      sel.value = String(Math.round(cur));
+      sel.addEventListener('change', () => apply(r, +sel.value, ti));
+      updaters.push((s, tr) => {
+        const v = Math.round(tr.params[r.s] ?? r.def ?? r.min);
+        if (document.activeElement !== sel) sel.value = String(v);
+      });
+      return el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, r.l), sel);
+    }
+
+    const log = !!r.log && r.min > 0;
+    const inp = el('input', {type: 'range', class: 'slider', 'aria-label': r.l});
+    if (log){ inp.min = 0; inp.max = 1; inp.step = 0.001; inp.value = toPos(r, cur); }
+    else { inp.min = r.min; inp.max = r.max; inp.step = r.int ? 1 : Math.max(0.001, (r.max - r.min) / 200); inp.value = cur; }
+    const val = el('span', {class: 'pval num'}, fmt(r, cur));
+    inp.addEventListener('input', () => {
+      const raw = log ? fromPos(r, +inp.value) : +inp.value;
+      const v = Math.round(raw * 1000) / 1000;
+      val.textContent = fmt(r, v);
+      apply(r, v, ti);
+    });
+    updaters.push((s, tr) => {
+      const v = tr.params[r.s] ?? r.def ?? r.min;
+      val.textContent = fmt(r, v);
+      if (document.activeElement !== inp) inp.value = log ? toPos(r, v) : v;
+    });
+    return el('div', {class: 'prow'}, el('span', {class: 'plabel'}, r.l), inp, val);
+  }
+
+  /* ---- track: volume (and, in More, its length) ---- */
+  function volume(t, ti){
+    const inp = el('input', {type: 'range', min: 0, max: 1, step: 0.01, 'aria-label': 'Volume'});
+    const val = el('span', {class: 'pval num'});
+    inp.addEventListener('input', () => {
+      const v = +inp.value;
+      val.textContent = Math.round(v * 100) + '%';
+      store.edit('Volume', s => { s.tracks[ti].vol = v; });
+    });
+    updaters.push((s, tr) => {
+      const v = tr.vol ?? 0.8;
+      val.textContent = Math.round(v * 100) + '%';
+      if (document.activeElement !== inp) inp.value = v;
+    });
+    root.append(el('div', {class: 'psec'}, 'Track'),
+      el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Volume'), inp, val));
+  }
+
+  /* ---- selected step (read-only until phase 4) ---- */
+  function step(s, t, ti){
+    root.append(el('div', {class: 'psec'}, 'Selected step'));
+    const body = el('div');
+    root.append(body);
+
+    const paint = (song, tr) => {
+      body.innerHTML = '';
+      if (state.step == null){
+        body.append(el('p', {class: 'note'}, 'Tap and hold a step (or right-click it) to see its note.'));
+        return;
+      }
+      const sc = song.scenes[state.scene];
+      const lane = (sc && sc.steps && sc.steps[tr.id]) || [];
+      const st = lane[state.step];
+      body.append(el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Step'),
+        el('span', {class: 'pval num'}, String(state.step + 1))));
+      if (!st || !st.on){ body.append(el('p', {class: 'note'}, 'This step is off.')); return; }
+      const note = tr.type === 'drum' ? 'Drum' : midiName(degToMidi(st.deg || 0, song.key, song.scale, tr.oct ?? 3));
+      body.append(
+        el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Note'), el('span', {class: 'pval num'}, note)),
+        el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Velocity'), el('span', {class: 'pval num'}, String(st.vel ?? 100))),
+        el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Chance'), el('span', {class: 'pval num'}, `${st.chance ?? 100}%`)));
+    };
+    paint(s, t);
+    updaters.push(paint);
+  }
+
+  refresh();
+  return {refresh};
+}
