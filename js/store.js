@@ -1,17 +1,22 @@
-/* js/store.js: song data, and (phase 3) save / load, undo / redo and format migration.
+/* js/store.js: song data, undo / redo, saving and loading, and format migration.
  *
- * Every change to the song goes through store.edit(label, fn), so phase 3 can add undo / redo and saving in one
- * place without touching the screens. Format: docs/SPEC.md "Data (one song)". Fields added in phase 1, all
+ * Every change to the song goes through store.edit(label, fn), so undo / redo and saving live in one place and the
+ * screens never touch the song directly. Format: docs/SPEC.md "Data (one song)". Fields added in phase 1, all
  * optional (old songs open as before):
  *   track.oct        root octave of a Synth / MIDI / CV track (MIDI octave: 2 = C2 = note 36). Default 3.
  *   track.len        per-track length in steps (More mode). 0 / missing = the scene's length.
  *   track.midi.clock send MIDI clock + Start / Stop to this MIDI track's port.
  *   track.params     {setting: value} over the sound's own values (drum / synth). Settings and their ranges:
  *                    settingsFor(track.sound) in js/engine/sounds.js. Clear it when the sound changes.
+ *
+ * Undo keeps the song as it was before each edit (a JSON copy — a song is a few KB), up to HISTORY steps. Consecutive
+ * slider moves (Sound setting / Volume / Swing within 600 ms) count as one step, so one drag is one Undo.
  */
 import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
 
 export const VERSION = 1, MAX_TRACKS = 16, SCENES = 'ABCDEFGH'.split('');
+const HISTORY = 80, MERGE_MS = 600;
+const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing']);
 
 // GM drum notes, so a drum track's seedsNote is something sensible in Seeds and in any drum machine
 const GM = {'Kick': 36, 'Boom kick': 35, 'Snare': 38, 'Clap': 39, 'Closed hat': 42, 'Open hat': 46, 'Tom': 45, 'Rim': 37,
@@ -37,7 +42,7 @@ export function newSong(){
     link: {seedsPort: '', seedsCh: 16, clock: true}, mode: 'simple'};
 }
 
-// A little beat to hear straight away (used by the phase 1 test page; phase 2 can keep or drop it).
+// A little beat to hear straight away the first time Spores is opened (until she makes it her own).
 export function demoSong(){
   const s = newSong(), on = (ti, steps, extra = {}) => {
     const id = s.tracks[ti].id, lane = s.scenes.A.steps[id] = s.scenes.A.steps[id] || [];
@@ -66,11 +71,59 @@ export function migrate(s){
 export function createStore(initial){
   let song = migrate(initial || demoSong());
   const subs = [];
+  const past = [], future = [];          // JSON copies: the song before each edit, and what Redo brings back
+  let lastLabel = '', lastAt = 0;
+
+  const snap = () => JSON.stringify(song);
+  const notify = label => { for (const f of subs) f(song, label); };
+  const push = json => { past.push(json); if (past.length > HISTORY) past.shift(); future.length = 0; };
+
   return {
     get: () => song,
-    // fn changes the song in place. label: what the change was, for Undo (phase 3).
-    edit(label, fn){ fn(song); subs.forEach(f => f(song, label)); },
-    replace(s){ song = migrate(s); subs.forEach(f => f(song, 'load')); },
+
+    // fn changes the song in place. label: what the change was (also what Undo calls it, in the title).
+    edit(label, fn){
+      const before = snap();
+      fn(song);
+      const after = snap();
+      if (after === before) return;        // nothing actually changed: no history entry
+      const now = Date.now();
+      const merge = MERGE_LABELS.has(label) && label === lastLabel && now - lastAt < MERGE_MS && past.length > 0;
+      if (!merge) push(before);            // one drag of a slider is one Undo, not sixty
+      lastLabel = label; lastAt = now;
+      notify(label);
+    },
+
+    // replace the whole song (New song, Open a file). Still undoable: nothing is lost.
+    replace(s, label = 'load'){
+      const before = snap();
+      song = migrate(s);
+      if (snap() !== before) push(before);
+      lastLabel = '';
+      notify(label);
+    },
+
+    undo(){
+      if (!past.length) return false;
+      future.push(snap());
+      song = migrate(JSON.parse(past.pop()));
+      lastLabel = '';
+      notify('undo');
+      return true;
+    },
+
+    redo(){
+      if (!future.length) return false;
+      past.push(snap());
+      song = migrate(JSON.parse(future.pop()));
+      lastLabel = '';
+      notify('redo');
+      return true;
+    },
+
+    get canUndo(){ return past.length > 0; },
+    get canRedo(){ return future.length > 0; },
+
     subscribe(f){ subs.push(f); return () => subs.splice(subs.indexOf(f), 1); },
   };
 }

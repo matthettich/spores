@@ -36,6 +36,8 @@ export function mountSteps(root, {store, engine}){
   const scenesEl = el('div', {class: 'scenes'});
   const simpleBtn = el('button', {class: 'tb', onclick: () => setMode('simple')}, 'Simple');
   const moreBtn = el('button', {class: 'tb', onclick: () => setMode('more')}, 'More');
+  const undoBtn = el('button', {class: 'tb', title: 'Undo', onclick: () => store.undo()}, 'Undo');
+  const redoBtn = el('button', {class: 'tb', title: 'Redo', onclick: () => store.redo()}, 'Redo');
 
   // More only: swing (every second 16th comes late)
   const swing = el('input', {type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Swing'});
@@ -55,7 +57,7 @@ export function mountSteps(root, {store, engine}){
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Scenes'), scenesEl),
     el('div', {class: 'hgroup'},
       el('button', {class: 'tb', disabled: true, title: 'The Song screen comes in phase 5'}, 'Song ›'),
-      el('button', {class: 'tb', disabled: true, title: 'Undo comes in phase 3'}, 'Undo')),
+      undoBtn, redoBtn),
     el('div', {class: 'hgroup seg'}, simpleBtn, moreBtn),
     swingWrap);
 
@@ -278,6 +280,8 @@ export function mountSteps(root, {store, engine}){
     if (document.activeElement !== swing) swing.value = Math.round((s.swing || 0) * 100);
     addBtn.textContent = `+ Add track (${s.tracks.length} of ${MAX_TRACKS})`;
     addBtn.disabled = s.tracks.length >= MAX_TRACKS;
+    undoBtn.disabled = !store.canUndo;
+    redoBtn.disabled = !store.canRedo;
     drawScenes(s);
     drawTracks(s);
     drawGrid(s);
@@ -300,8 +304,21 @@ export function mountSteps(root, {store, engine}){
     'Track length': () => panel.refresh(),
   };
   store.subscribe((s, label) => {
+    // Undo / Redo availability changes on every edit, including the quick ones below
+    undoBtn.disabled = !store.canUndo;
+    redoBtn.disabled = !store.canRedo;
     const h = light[label];
     if (h) h(s); else sync(s);
+  });
+
+  // Ctrl/Cmd+Z, Shift+Z (or Ctrl+Y) anywhere except while typing in a field
+  window.addEventListener('keydown', e => {
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z'){ e.preventDefault(); if (e.shiftKey) store.redo(); else store.undo(); }
+    else if (k === 'y'){ e.preventDefault(); store.redo(); }
   });
 
   engine.on('start', () => { playBtn.classList.add('on'); playBtn.textContent = '■ Stop'; playBtn.setAttribute('aria-pressed', 'true'); });
