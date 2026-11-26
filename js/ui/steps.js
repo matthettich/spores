@@ -37,6 +37,16 @@ export function mountSteps(root, {store, engine}){
   const simpleBtn = el('button', {class: 'tb', onclick: () => setMode('simple')}, 'Simple');
   const moreBtn = el('button', {class: 'tb', onclick: () => setMode('more')}, 'More');
 
+  // More only: swing (every second 16th comes late)
+  const swing = el('input', {type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Swing'});
+  const swingVal = el('span', {class: 'pval num'});
+  const swingWrap = el('label', {class: 'field', title: 'Every second 16th note comes late'}, 'Swing', swing, swingVal);
+  swing.addEventListener('input', () => {
+    const pc = +swing.value;
+    swingVal.textContent = pc + '%';
+    store.edit('Swing', s => { s.swing = pc / 100; });
+  });
+
   const header = el('header', {class: 'hdr'},
     el('span', {class: 'app-name'}, '...Spores'),
     playBtn,
@@ -46,7 +56,8 @@ export function mountSteps(root, {store, engine}){
     el('div', {class: 'hgroup'},
       el('button', {class: 'tb', disabled: true, title: 'The Song screen comes in phase 5'}, 'Song ›'),
       el('button', {class: 'tb', disabled: true, title: 'Undo comes in phase 3'}, 'Undo')),
-    el('div', {class: 'hgroup seg'}, simpleBtn, moreBtn));
+    el('div', {class: 'hgroup seg'}, simpleBtn, moreBtn),
+    swingWrap);
 
   /* ---- middle: track list and step grid ---- */
   const tracksEl = el('div', {class: 'tracks', 'aria-label': 'Tracks'});
@@ -262,6 +273,9 @@ export function mountSteps(root, {store, engine}){
     lockBtn.setAttribute('aria-pressed', s.lock ? 'true' : 'false');
     simpleBtn.classList.toggle('on', s.mode === 'simple');
     moreBtn.classList.toggle('on', s.mode === 'more');
+    swingWrap.hidden = s.mode !== 'more';
+    swingVal.textContent = Math.round((s.swing || 0) * 100) + '%';
+    if (document.activeElement !== swing) swing.value = Math.round((s.swing || 0) * 100);
     addBtn.textContent = `+ Add track (${s.tracks.length} of ${MAX_TRACKS})`;
     addBtn.disabled = s.tracks.length >= MAX_TRACKS;
     drawScenes(s);
@@ -276,6 +290,14 @@ export function mountSteps(root, {store, engine}){
   const light = {
     'Step on / off': () => { paintGrid(); panel.refresh(); },
     'Tempo': () => { if (document.activeElement !== bpm) bpm.value = store.get().bpm; },
+    'Swing': () => {
+      const v = Math.round((store.get().swing || 0) * 100);
+      swingVal.textContent = v + '%';
+      if (document.activeElement !== swing) swing.value = v;
+    },
+    'Volume': () => panel.refresh(),
+    'Sound setting': () => panel.refresh(),
+    'Track length': () => panel.refresh(),
   };
   store.subscribe((s, label) => {
     const h = light[label];
