@@ -1,8 +1,8 @@
 /* js/ui/panel.js: the right-hand track / step panel.
  *
  * Selected track: sound picker with Prev / Next (grouped by engine), its sound settings as sliders (Simple = the
- * few main ones, More = all), MIDI port / channel / clock for a MIDI track, volume. CV tracks say what they are for
- * (phase 7). Selected step: Note / Velocity / Chance. See docs/SPEC.md "Screens".
+ * few main ones, More = all), MIDI port / channel / clock for a MIDI track, volume. CV tracks: outputs, Tune CV,
+ * Test outputs (js/ui/cv.js). Selected step: Note / Velocity / Chance. See docs/SPEC.md "Screens".
  *
  * Sound settings come from settingsFor(track.sound) → {main, all}; `ch` = names per whole value (a menu),
  * `log: true` = a logarithmic slider. A change is store.edit('Sound setting', s => { t.params[key] = value }), so it
@@ -17,6 +17,7 @@ import {SOUND_LISTS} from '../store.js';
 import {ask, openDialog} from './dialog.js';
 import * as midi from '../midi.js';
 import {el} from './dom.js';
+import {cvSection} from './cv.js';
 
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -58,9 +59,9 @@ export function mountPanel(root, {store, engine, state}){
     } else if (t.type === 'midi'){
       midiTrack(t, ti);
     } else if (t.type === 'cv'){
-      root.append(el('p', {class: 'note'}, 'A CV track. The pitch and gate outputs arrive in phase 7.'));
+      updaters.push(cvSection(root, {store, engine, t, ti, mode: s.mode}));
     }
-    volume(t, ti);
+    if (t.type !== 'cv') volume(t, ti);   // a CV track has no level: its voltages are its notes
     if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
     if (s.mode === 'more' && t.type === 'drum') seedsNote(t, ti);
     step(s, t, ti);

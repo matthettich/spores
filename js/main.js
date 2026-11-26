@@ -4,10 +4,12 @@ import {createEngine} from './engine/engine.js';
 import * as midi from './midi.js';
 import {mountSteps} from './ui/steps.js';
 import {mountSong} from './ui/song.js';
+import {applyCvSettings} from './ui/cv.js';
 
 const store = createStore();
 // The AudioContext starts suspended; the first Play (a click) resumes it.
 const engine = await createEngine();
+await applyCvSettings(engine);   // CV output device + volts at full scale, kept on this computer
 engine.setSong(store.get());
 store.subscribe(s => engine.setSong(s));
 

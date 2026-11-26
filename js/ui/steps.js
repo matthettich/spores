@@ -94,10 +94,10 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   // the button adds a drum (one tap, the common case); the small ▾ next to it offers the other two kinds
   const addMenu = el('div', {class: 'menu up', role: 'menu', hidden: true});
   const addBtn = el('button', {class: 'tb', title: 'Add a drum track', onclick: () => addTrack('drum')}, '+ Add track');
-  const addMoreBtn = el('button', {class: 'tb', title: 'Add a synth or MIDI track', 'aria-label': 'Add a synth or MIDI track',
+  const addMoreBtn = el('button', {class: 'tb', title: 'Add a synth, MIDI or CV track', 'aria-label': 'Add a synth, MIDI or CV track',
     'aria-haspopup': 'menu', 'aria-expanded': 'false',
     onclick: e => { e.stopPropagation(); addMenu.hidden ? openAdd() : closeAdd(); }}, '▾');
-  for (const [type, label] of [['synth', 'Synth track'], ['midi', 'MIDI track']])
+  for (const [type, label] of [['synth', 'Synth track'], ['midi', 'MIDI track'], ['cv', 'CV track']])
     addMenu.append(el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack(type); }}, label));
   const addWrap = el('div', {class: 'hgroup seg menu-wrap'}, addBtn, addMoreBtn, addMenu);
   function openAdd(){
@@ -162,8 +162,13 @@ export function mountSteps(root, {store, engine, midi, openSong}){
     store.edit('Add track', s => {
       const used = new Set(s.tracks.map(t => t.sound));
       const n = s.tracks.filter(t => t.type === type).length + 1;
-      if (type === 'midi'){
-        const t = newTrack('midi'); t.name = 'MIDI ' + n;
+      if (type === 'midi' || type === 'cv'){
+        const t = newTrack(type); t.name = (type === 'midi' ? 'MIDI ' : 'CV ') + n;
+        if (type === 'cv'){   // the next free pair of outputs, from 3 (1–2 carry the music)
+          const usedCh = new Set(s.tracks.filter(x => x.type === 'cv').flatMap(x => [x.cv.pitch, x.cv.gate]));
+          let c = 3; while (usedCh.has(c) || usedCh.has(c + 1)) c += 2;
+          t.cv.pitch = c; t.cv.gate = c + 1;
+        }
         s.tracks.push(t);
       } else {
         const sound = (SOUND_LISTS[type] || []).find(x => !used.has(x)) || (SOUND_LISTS[type] || ['Kick'])[0];
@@ -224,6 +229,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
       const sub = [TYPE[t.type] || t.type];
       if (t.sound) sub.push(t.sound);
       if (t.type === 'midi') sub.push(t.midi && t.midi.port ? portName(t.midi.port) : 'no port yet', 'ch ' + ((t.midi && t.midi.ch) || 1));
+      if (t.type === 'cv') sub.push(`out ${t.cv.pitch} / ${t.cv.gate}` + (t.cv.cal ? ' · tuned' : ''));
       const mute = el('button', {class: 'mute' + (t.mute ? ' on' : ''), title: 'Mute this track',
         'aria-label': 'Mute ' + (t.name || TYPE[t.type]), 'aria-pressed': t.mute ? 'true' : 'false',
         onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, 'M');
