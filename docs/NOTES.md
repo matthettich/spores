@@ -2,6 +2,22 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — desktop app (Mac) built by GitHub; track controls merged (Claude)
+- **Desktop:** `desktop/` wraps the app in Electron (setup copied from ...Seeds; see `desktop/README.md`). Served from a
+  secure `app://spores/` scheme because modules / AudioWorklet / Worker / wasm refuse `file://`. MIDI and audio
+  permissions granted without prompts, no background timer throttling (MIDI timing), Save box for Save a copy…, one copy
+  at a time, update checks against this repo's Releases (unsigned Mac: it offers the .dmg). Menu Undo / Redo call the
+  page's undo.
+- **Build:** `.github/workflows/desktop.yml` on macos-latest, unsigned arm64 + x64 .dmg and .zip as run downloads; runs on
+  pushes to dev that touch `desktop/`, on a `v*` tag (publishes a Release), and from Run workflow once the file is on main.
+  First green run: 45889382110.
+- **Tested:** Electron 33 under xvfb here (secure context, engine + wasm + Play, MIDI permission granted, no errors);
+  `tests/updater.test.js` 6/6. Not tested: opening the .dmg on a real Mac.
+- **Odd:** the browser song doesn't carry into the app (separate storage): Save a copy… in Chrome, Open in the app.
+  At 1280 px wide (a laptop) the header wraps to two rows and the 16th grid column scrolls off; worth a laptop layout pass.
+- **Track controls (merged from `track-controls`, built by a Sonnet agent, checked by Claude):** Solo (S, dims the
+  others), Rename (panel button or double-click the name), Delete track (asks, "Keep it" focused, Undo restores).
+
 ## 2026-11-26 — track controls: Solo, Rename, Delete (branch track-controls, Claude)
 - **Built:** an S button beside M on every track row (44 px+, `aria-pressed`, store.edit 'Solo'); while any track is soloed
   the others' rows and step lanes dim (`.quiet`) so it is clear why they went silent. Rename button in the panel header
