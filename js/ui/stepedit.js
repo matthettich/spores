@@ -7,13 +7,16 @@ export function stepAt(song, {scene, trackId, index}){
   return lane ? lane[index] : null;
 }
 
+/* The key says which step changed, so a drag on one step merges into one Undo but two different steps never do. */
+const keyOf = where => `${where.scene}:${where.trackId}:${where.index}`;
+
 function editStep(store, where, label, fn){
   store.edit(label, song => {
     const sc = song.scenes[where.scene];
     const lane = sc && sc.steps && sc.steps[where.trackId];
     const st = lane && lane[where.index];
     if (st && st.on) fn(st, song);
-  });
+  }, keyOf(where));
 }
 
 /* Move a note up or down the scale (deg is in scale steps, so it stays in key). */

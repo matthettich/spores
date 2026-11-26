@@ -123,7 +123,7 @@ export function createStore(initial){
   let song = migrate(initial || loadSaved() || demoSong());
   const subs = [];
   const past = [], future = [];          // JSON copies: the song before each edit, and what Redo brings back
-  let lastLabel = '', lastAt = 0, saveTimer = 0;
+  let lastLabel = '', lastKey = '', lastAt = 0, saveTimer = 0;
 
   const snap = () => JSON.stringify(song);
   const notify = label => { for (const f of subs) f(song, label); };
@@ -142,7 +142,7 @@ export function createStore(initial){
     const before = snap();
     song = migrate(s);
     if (snap() !== before) push(before);
-    lastLabel = '';
+    lastLabel = lastKey = '';
     persist();
     notify(label);
   }
@@ -150,16 +150,20 @@ export function createStore(initial){
   return {
     get: () => song,
 
-    // fn changes the song in place. label: what the change was (also what Undo calls it, in the title).
-    edit(label, fn){
+    /* fn changes the song in place. label: what the change was (for Undo).
+       key: which thing it changed (a track, a setting, a step). Two edits merge into one Undo only when they share
+       the label AND the key, so dragging a slider is one Undo but touching a second step starts a new one. */
+    edit(label, fn, key){
       const before = snap();
       fn(song);
       const after = snap();
       if (after === before) return;        // nothing actually changed: no history entry
       const now = Date.now();
-      const merge = MERGE_LABELS.has(label) && label === lastLabel && now - lastAt < MERGE_MS && past.length > 0;
+      const mergeKey = key || label;
+      const merge = MERGE_LABELS.has(label) && label === lastLabel && mergeKey === lastKey
+        && now - lastAt < MERGE_MS && past.length > 0;
       if (!merge) push(before);            // one drag of a slider is one Undo, not sixty
-      lastLabel = label; lastAt = now;
+      lastLabel = label; lastKey = mergeKey; lastAt = now;
       persist();
       notify(label);
     },
@@ -177,7 +181,7 @@ export function createStore(initial){
       if (!past.length) return false;
       future.push(snap());
       song = migrate(JSON.parse(past.pop()));
-      lastLabel = '';
+      lastLabel = lastKey = '';
       persist();
       notify('undo');
       return true;
@@ -187,7 +191,7 @@ export function createStore(initial){
       if (!future.length) return false;
       past.push(snap());
       song = migrate(JSON.parse(future.pop()));
-      lastLabel = '';
+      lastLabel = lastKey = '';
       persist();
       notify('redo');
       return true;

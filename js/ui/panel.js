@@ -110,7 +110,7 @@ export function mountPanel(root, {store, engine, state}){
       const t = s.tracks[ti];
       t.params = t.params || {};
       t.params[r.s] = v;
-    });
+    }, `${ti}:${r.s}`);
   }
 
   function settingRow(r, t, ti){
@@ -154,7 +154,7 @@ export function mountPanel(root, {store, engine, state}){
     inp.addEventListener('input', () => {
       const v = +inp.value;
       val.textContent = Math.round(v * 100) + '%';
-      store.edit('Volume', s => { s.tracks[ti].vol = v; });
+      store.edit('Volume', s => { s.tracks[ti].vol = v; }, `${ti}:volume`);
     });
     updaters.push((s, tr) => {
       const v = tr.vol ?? 0.8;
