@@ -16,7 +16,7 @@ import {el} from './dom.js';
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-export function mountSteps(root, {store, engine}){
+export function mountSteps(root, {store, engine, openSong}){
   const state = {scene: 'A', track: 0, step: null};
 
   /* ---- header: Play, Tempo, Key + scale, scenes, Song / Undo, Simple / More ---- */
@@ -59,7 +59,7 @@ export function mountSteps(root, {store, engine}){
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Key'), keySel, scaleSel, lockBtn),
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Scenes'), scenesEl),
     el('div', {class: 'hgroup'},
-      el('button', {class: 'tb', disabled: true, title: 'The Song screen comes in phase 5'}, 'Song ›'),
+      el('button', {class: 'tb', title: 'Arrange the scenes into a song', onclick: () => openSong()}, 'Song ›'),
       undoBtn, redoBtn, fileWrap),
     el('div', {class: 'hgroup seg'}, simpleBtn, moreBtn),
     swingWrap);

@@ -1,5 +1,226 @@
-/* js/ui/song.js: the Song screen (phase 5). Blocks (scene, name, mini grid, × repeats, loop), drag to reorder,
- * + Add block, a song position bar, the scene library A–H. See docs/SPEC.md "Screens".
- * The engine already plays songs: engine.play('song', null, blockIndex); a block's `loop: true` repeats it forever.
- * Step messages carry {block, rep} for the position bar. */
-export function mountSong(root, ctx){ return {playhead(){}, stopped(){}}; }
+/* js/ui/song.js: the Song screen (phase 5): blocks of scenes with repeats and loop, the song position bar and
+ * the scene library A–H. Nothing is arranged per track: a block is just a scene, a repeat count and a loop flag.
+ *
+ * Every change goes through store.edit, so Undo, Redo and the autosave work here too. The engine plays the song
+ * (engine.play('song')) and tells us on every step which block, repeat and step it is on, which moves the bar.
+ */
+import {SCENES} from '../store.js';
+import {STEPS_PER_BAR} from '../engine/engine.js';
+import {noteColor} from '../scale.js';
+import {el} from './dom.js';
+import {ask, toast} from './dialog.js';
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const bars = sc => clamp((sc && sc.bars) | 0 || 1, 1, 4);
+const sceneLen = sc => bars(sc) * STEPS_PER_BAR;
+const repeatOf = b => clamp((b && b.repeat) | 0 || 1, 1, 64);
+
+export function mountSong(root, {store, engine, openSteps}){
+  let playing = false;
+  let pos = {block: 0, rep: 0, counter: 0, live: false};
+
+  /* ---- header: back to the steps, Play, Tempo ---- */
+  const playBtn = el('button', {class: 'tb play', 'aria-label': 'Play or stop the song', onclick: () => togglePlay()}, '▶ Play');
+  const bpm = el('input', {class: 'num', type: 'number', min: 20, max: 300, step: 1, 'aria-label': 'Tempo'});
+  bpm.addEventListener('change', () => store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); }));
+  const undoBtn = el('button', {class: 'tb', title: 'Undo', onclick: () => store.undo()}, 'Undo');
+  const redoBtn = el('button', {class: 'tb', title: 'Redo', onclick: () => store.redo()}, 'Redo');
+
+  const header = el('header', {class: 'hdr'},
+    el('button', {class: 'tb', title: 'Back to the steps', onclick: () => openSteps()}, '‹ Steps'),
+    el('span', {class: 'app-name'}, '...Spores · Song'),
+    playBtn,
+    el('label', {class: 'field'}, 'Tempo', bpm),
+    el('div', {class: 'hgroup'}, undoBtn, redoBtn),
+    el('span', {class: 'hint'}, 'The blocks play in order, then the song starts again.'));
+
+  /* ---- body: the blocks, the position bar, the scene library ---- */
+  const blocksEl = el('div', {class: 'sblocks'});
+  const posbar = el('div', {class: 'posbar', 'aria-hidden': 'true'});
+  const posline = el('p', {class: 'posline'}, 'Not playing.');
+  const addBtn = el('button', {class: 'tb', onclick: addBlock}, '+ Add block');
+  const libEl = el('div', {class: 'libgrid'});
+
+  const body = el('div', {class: 'songbody'},
+    el('section', {class: 'ssection'},
+      el('div', {class: 'sline-h'},
+        el('span', {class: 'psec'}, 'Song'),
+        el('span', {class: 'hint'}, 'Drag a block to move it · − + change the repeats · Loop repeats one block forever'),
+        addBtn),
+      blocksEl,
+      posbar,
+      posline),
+    el('section', {class: 'ssection'},
+      el('div', {class: 'sline-h'},
+        el('span', {class: 'psec'}, 'Scenes'),
+        el('span', {class: 'hint'}, 'Tap a scene to add it to the end of the song.')),
+      libEl));
+
+  root.append(header, body);
+
+  /* ---- actions ---- */
+  function togglePlay(){
+    if (engine.playing){ engine.stop(); return; }
+    if (!blocks().length){ toast('Add a scene to the song first.'); return; }
+    engine.play('song');
+  }
+
+  function addBlock(){
+    const s = store.get();
+    const first = SCENES.find(k => s.scenes[k]);
+    if (!first) return;
+    store.edit('Add block', song => { song.song.push({scene: first, repeat: 1, loop: false}); });
+  }
+
+  function addSceneBlock(k){
+    store.edit('Add block', song => { song.song.push({scene: k, repeat: 1, loop: false}); });
+    toast(`Scene ${k} added to the end of the song.`);
+  }
+
+  function setRepeat(i, v){
+    const n = clamp(v, 1, 64);
+    store.edit('Repeats', song => { if (song.song[i]) song.song[i].repeat = n; });
+  }
+
+  async function removeBlock(i, name){
+    const ok = await ask({title: `Remove “${name}” from the song?`, body: 'The scene itself stays in the library.',
+      yes: 'Remove it', no: 'Keep it'});
+    if (!ok) return;
+    store.edit('Remove block', song => { song.song.splice(i, 1); });
+    toast(`Removed “${name}” from the song.`);
+  }
+
+  /* ---- drawing ---- */
+  const blocks = (s = store.get()) => s.song.map((b, i) => ({b, i})).filter(({b}) => b && s.scenes[b.scene]);
+
+  function miniGrid(s, sc){
+    const wrap = el('div', {class: 'mini', 'aria-hidden': 'true'});
+    const len = Math.min(STEPS_PER_BAR, sceneLen(sc));   // the first bar is enough to recognise a scene
+    for (const t of s.tracks.slice(0, 8)){
+      const row = el('div', {class: 'miniro'});
+      const lane = (sc.steps && sc.steps[t.id]) || [];
+      for (let i = 0; i < len; i++){
+        const st = lane[i], on = !!(st && st.on);
+        const bg = on ? (t.type === 'drum' ? 'var(--gate)' : noteColor(st.deg || 0, s.scale).top) : '';
+        row.append(el('span', {class: 'minid' + (on ? ' on' : ''), style: on ? {background: bg} : null}));
+      }
+      wrap.append(row);
+    }
+    return wrap;
+  }
+
+  function blockCard(s, b, i){
+    const sc = s.scenes[b.scene], rep = repeatOf(b);
+    const pick = el('select', {class: 'sblk-pick', 'aria-label': 'Scene of this block'});
+    for (const k of SCENES) if (s.scenes[k]) pick.append(el('option', {value: k}, k));
+    pick.value = b.scene;
+    pick.addEventListener('change', () => store.edit('Block scene', song => { if (song.song[i]) song.song[i].scene = pick.value; }));
+
+    return el('div', {class: 'sblk'},
+      el('div', {class: 'sblk-head'},
+        pick,
+        el('span', {class: 'sblk-name'}, sc.name || `Scene ${b.scene}`)),
+      miniGrid(s, sc),
+      el('div', {class: 'sblk-row'},
+        el('button', {class: 'tb', 'aria-label': 'One repeat fewer', onclick: () => setRepeat(i, rep - 1)}, '−'),
+        el('span', {class: 'sblk-rep num', title: 'How many times this block plays'}, `× ${rep}`),
+        el('button', {class: 'tb', 'aria-label': 'One repeat more', onclick: () => setRepeat(i, rep + 1)}, '+')),
+      el('div', {class: 'sblk-row'},
+        el('button', {class: 'tb' + (b.loop ? ' on' : ''), title: 'Play this block over and over', 'aria-pressed': b.loop ? 'true' : 'false',
+          onclick: () => store.edit('Loop block', song => { if (song.song[i]) song.song[i].loop = !song.song[i].loop; })}, 'Loop'),
+        el('button', {class: 'tb', title: 'Remove this block from the song', 'aria-label': 'Remove block',
+          onclick: () => removeBlock(i, sc.name || `Scene ${b.scene}`)}, '×')));
+  }
+
+  function drawBlocks(s){
+    blocksEl.innerHTML = '';
+    const list = blocks(s);
+    if (!list.length){
+      blocksEl.append(el('p', {class: 'note'}, 'The song is empty. Tap a scene below to add it to the end.'));
+      return;
+    }
+    list.forEach(({b, i}) => blocksEl.append(blockCard(s, b, i)));
+  }
+
+  function drawLibrary(s){
+    libEl.innerHTML = '';
+    SCENES.filter(k => s.scenes[k]).forEach(k => {
+      const sc = s.scenes[k];
+      const on = (sc.steps && Object.values(sc.steps).flat().filter(st => st && st.on).length) || 0;
+      const used = blocks(s).filter(({b}) => b.scene === k).length;
+      libEl.append(el('div', {class: 'libcard'},
+        el('div', {class: 'libcard-t'},
+          el('span', {class: 'libletter'}, k),
+          el('span', {class: 'libname'}, sc.name || `Scene ${k}`)),
+        el('p', {class: 'note'}, `${bars(sc)} bar${bars(sc) > 1 ? 's' : ''} · ${on} step${on === 1 ? '' : 's'} on`
+          + (used ? ` · in the song ${used}×` : ' · not in the song')),
+        el('div', {class: 'librow'},
+          el('button', {class: 'tb', onclick: () => addSceneBlock(k)}, '+ Add to song'))));
+    });
+  }
+
+  function drawPosition(s){
+    posbar.innerHTML = '';
+    const list = blocks(s);
+    const lens = list.map(({b}) => sceneLen(s.scenes[b.scene]) * repeatOf(b));
+    const total = lens.reduce((a, b) => a + b, 0);
+    addBtn.disabled = !SCENES.some(k => s.scenes[k]);
+    if (!total){
+      posbar.append(el('span', {class: 'posseg', style: {width: '100%'}}));
+      posline.textContent = 'The song is empty.';
+      return;
+    }
+    const liveBlock = pos.live ? list[pos.block] : null;
+    list.forEach((_, i) => posbar.append(el('span', {class: 'posseg' + (liveBlock && pos.block === i ? ' on' : ''),
+      style: {width: (lens[i] / total * 100) + '%'}})));
+    if (!liveBlock){
+      posline.textContent = engine.playing ? 'Playing…' : 'Not playing.';
+      return;
+    }
+    const here = sceneLen(s.scenes[liveBlock.b.scene]);
+    const before = lens.slice(0, pos.block).reduce((a, b) => a + b, 0);
+    const step = Math.max(0, pos.rep) * here + clamp(pos.counter, 0, here);
+    posbar.append(el('span', {class: 'posnow', style: {left: clamp(step / total * 100, 0, 100) + '%'}}));
+    const reps = repeatOf(liveBlock.b);
+    posline.textContent = `Playing block ${pos.block + 1} of ${list.length} · `
+      + (reps > 1 ? `repeat ${pos.rep + 1} of ${reps}` : 'no repeats')
+      + ` · ${liveBlock.b.scene}`;
+  }
+
+  function sync(s = store.get()){
+    if (document.activeElement !== bpm) bpm.value = s.bpm;
+    undoBtn.disabled = !store.canUndo;
+    redoBtn.disabled = !store.canRedo;
+    drawBlocks(s);
+    drawLibrary(s);
+    drawPosition(s);
+  }
+
+  store.subscribe(s => { if (!root.hidden) sync(s); });   // the Steps screen has nothing to do with these edits
+
+  engine.on('start', () => {
+    playing = true;
+    playBtn.classList.add('on'); playBtn.textContent = '■ Stop'; playBtn.setAttribute('aria-pressed', 'true');
+    if (!root.hidden) drawPosition(store.get());
+  });
+  engine.on('stop', () => {
+    playing = false;
+    playBtn.classList.remove('on'); playBtn.textContent = '▶ Play'; playBtn.setAttribute('aria-pressed', 'false');
+    pos = {block: 0, rep: 0, counter: 0, live: false};
+    if (!root.hidden) drawPosition(store.get());
+  });
+
+  sync();
+  playBtn.setAttribute('aria-pressed', 'false');
+
+  return {
+    refresh(){ sync(); },
+    /* the engine says a step was heard: {scene, block, rep, counter} — move the bar along the song */
+    playhead(m){
+      if (root.hidden || !playing) return;
+      pos = {block: m.block | 0, rep: m.rep | 0, counter: m.counter | 0, live: true};
+      drawPosition(store.get());
+    },
+    stopped(){ /* engine 'stop' already reset the bar */ },
+  };
+}

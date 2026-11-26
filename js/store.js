@@ -43,15 +43,26 @@ export function newSong(){
     link: {seedsPort: '', seedsCh: 16, clock: true}, mode: 'simple'};
 }
 
-// A little beat to hear straight away the first time Spores is opened (until she makes it her own).
+// A little song to hear straight away the first time Spores is opened (until she makes it her own): two scenes, so
+// the Song screen has something to arrange — A ×4 and then B ×2 (docs/SPEC.md "Songs").
 export function demoSong(){
-  const s = newSong(), on = (ti, steps, extra = {}) => {
-    const id = s.tracks[ti].id, lane = s.scenes.A.steps[id] = s.scenes.A.steps[id] || [];
+  const s = newSong();
+  const put = (sc, ti, steps, extra = {}) => {
+    const id = s.tracks[ti].id, lane = sc.steps[id] = sc.steps[id] || [];
     for (const i of steps) lane[i] = Object.assign({on: true, deg: 0, vel: 100, chance: 100}, typeof extra === 'function' ? extra(i) : extra);
   };
-  on(0, [0, 4, 8, 12]); on(1, [4, 12]); on(3, [2, 6, 10, 14]); on(4, [7, 15], {vel: 80});
-  const bass = [0, 0, 7, 0, 3, 0, 5, 4, 0, 0, 7, 0, 2, 3, 4, 7];
-  on(6, [0, 3, 6, 8, 10, 11, 14], i => ({deg: bass[i], vel: i === 6 || i === 14 ? 120 : 100}));
+  const A = s.scenes.A, B = (s.scenes.B = {name: 'Chorus', bars: 1, steps: {}});
+  const drums = sc => { put(sc, 0, [0, 4, 8, 12]); put(sc, 1, [4, 12]); put(sc, 3, [2, 6, 10, 14]); put(sc, 4, [7, 15], {vel: 80}); };
+  drums(A);
+  const bassA = [0, 0, 7, 0, 3, 0, 5, 4, 0, 0, 7, 0, 2, 3, 4, 7];
+  put(A, 6, [0, 3, 6, 8, 10, 11, 14], i => ({deg: bassA[i], vel: i === 6 || i === 14 ? 120 : 100}));
+  drums(B);
+  put(B, 2, [14]);
+  const bassB = [0, 0, 5, 0, 3, 3, 0, 5, 0, 0, 5, 0, 7, 5, 3, 0];
+  put(B, 6, [0, 3, 5, 6, 8, 10, 12, 14], i => ({deg: bassB[i]}));
+  const leadB = [0, 2, 3, 4, 4, 3, 2, 0];
+  put(B, 7, [0, 2, 4, 6, 8, 10, 12, 14], i => ({deg: leadB[i / 2] || 0, vel: 110}));
+  s.song = [{scene: 'A', repeat: 4}, {scene: 'B', repeat: 2}];
   return s;
 }
 
