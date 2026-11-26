@@ -21,14 +21,34 @@
   "build": {
     "appId": "app.spores.sequencer",
     "productName": "Spores",
-    "files": ["main.js", "preload.js", "updater.js", "app/**/*"],
-    "directories": { "output": "dist", "buildResources": "build" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "updater.js",
+      "app/**/*"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
     "mac": {
       "category": "public.app-category.music",
       "icon": "build/icon.png",
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] },
-        { "target": "zip", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
@@ -37,10 +57,17 @@
         "NSMicrophoneUsageDescription": "...Spores listens to an audio input only while you run Tune CV, to measure your oscillator."
       }
     },
-    "dmg": { "artifactName": "Spores-${version}-${arch}.${ext}" },
-    "zip": { "artifactName": "Spores-${version}-${arch}-mac.${ext}" },
+    "dmg": {
+      "artifactName": "Spores-${version}-${arch}.${ext}"
+    },
     "publish": [
-      { "provider": "github", "owner": "matthettich", "repo": "spores", "releaseType": "release" }
+      {
+        "provider": "github",
+        "owner": "matthettich",
+        "repo": "spores",
+        "releaseType": "release"
+      }
     ]
-  }
+  },
+  "author": "Matt Hettich"
 }
