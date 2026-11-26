@@ -2,6 +2,21 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — track controls: Solo, Rename, Delete (branch track-controls, Claude)
+- **Built:** an S button beside M on every track row (44 px+, `aria-pressed`, store.edit 'Solo'); while any track is soloed
+  the others' rows and step lanes dim (`.quiet`) so it is clear why they went silent. Rename button in the panel header
+  and double-click on a row's name open a dialog (Enter saves, Escape cancels, trimmed, 24 letters, empty keeps the old
+  name; 'Rename track'). Quiet "Delete track" button at the bottom of the panel: asks ("Delete Kick" / "Keep it", Keep
+  it focused, says Undo brings it back), disabled on the last track; one 'Delete track' edit removes the track and its
+  steps in every scene and moves the selection to the next track (or the one before if it was last). New file
+  `js/ui/trackctl.js`; the panel's rebuild signature now includes the name and the track count.
+- **Tested (headless Chrome):** solo store/classes/dim/compiled song/undo; rename + trim + undo + Escape + empty +
+  double-click; delete asks, Keep it changes nothing, confirm removes track and steps, Undo restores the song exactly
+  and the track is selectable, count `+ Add track (n of 16)` follows, last track's button disabled; no console errors;
+  tests/engine-check.mjs still passes. Not tested: touch hardware, real playback of a solo.
+- **Odd / left:** the name field's 24-letter limit counts spaces typed before the name, so leading spaces eat the room.
+  Help text still only mentions M. Deleting a track leaves its Seeds/MIDI settings gone with it (Undo restores).
+
 ## 2026-11-26 — phase 9 review done (Claude); Electron build planned, not started
 - **Checked:** `js/ui/`, `js/store.js`, `js/main.js`, `css/` against AGENTS.md and for beginner confusion. No file over
   600 lines, no npm in the app, no colours outside `:root` in CSS, every control ≥ 44 px (smoke test at 1440×900).

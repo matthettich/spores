@@ -7,6 +7,7 @@
  */
 import {STEPS_PER_BAR} from '../engine/engine.js';
 import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js';
+import {renameTrack} from './trackctl.js';
 import {SCENES, MAX_TRACKS, SOUND_LISTS, newTrack} from '../store.js';
 import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
@@ -232,6 +233,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
 
   function drawTracks(s = store.get()){
     tracksEl.innerHTML = '';
+    const anySolo = s.tracks.some(t => t.solo);
     s.tracks.forEach((t, ti) => {
       const sub = [TYPE[t.type] || t.type];
       if (t.sound) sub.push(t.sound);
@@ -240,11 +242,16 @@ export function mountSteps(root, {store, engine, midi, openSong}){
       const mute = el('button', {class: 'mute' + (t.mute ? ' on' : ''), title: 'Mute this track',
         'aria-label': 'Mute ' + (t.name || TYPE[t.type]), 'aria-pressed': t.mute ? 'true' : 'false',
         onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, 'M');
-      const row = el('div', {class: 'track' + (ti === state.track ? ' sel' : ''), role: 'button', tabindex: '0',
+      const solo = el('button', {class: 'mute solo' + (t.solo ? ' on' : ''), title: 'Solo: hear only this track (and other soloed ones)',
+        'aria-label': 'Solo ' + (t.name || TYPE[t.type]), 'aria-pressed': t.solo ? 'true' : 'false',
+        onclick: e => { e.stopPropagation(); store.edit('Solo', s2 => { s2.tracks[ti].solo = !s2.tracks[ti].solo; }); }}, 'S');
+      const tname = el('span', {class: 'tname', title: 'Double-click to rename'}, t.name);
+      tname.addEventListener('dblclick', e => { e.stopPropagation(); renameTrack(store, t.id); });
+      const row = el('div', {class: 'track' + (ti === state.track ? ' sel' : '') + (anySolo && !t.solo ? ' quiet' : ''), role: 'button', tabindex: '0',
         'aria-label': `${t.name} (${TYPE[t.type]})`, 'aria-pressed': ti === state.track ? 'true' : 'false'},
         el('span', {class: 'tbar ' + t.type}),
-        el('span', {class: 'tinfo'}, el('span', {class: 'tname'}, t.name), el('span', {class: 'tsub'}, sub.join(' · '))),
-        mute);
+        el('span', {class: 'tinfo'}, tname, el('span', {class: 'tsub'}, sub.join(' · '))),
+        mute, solo);
       row.addEventListener('click', () => selectTrack(ti));
       row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectTrack(ti); } });
       tracksEl.append(row);
@@ -284,9 +291,11 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   function paintGrid(s = store.get()){
     const sc = s.scenes[state.scene];
     if (!sc) return;
+    const anySolo = s.tracks.some(t => t.solo);
     s.tracks.forEach((t, ti) => {
       const lane = sc.steps[t.id] || [], rc = cells[ti];
       if (!rc) return;
+      if (rc[0]) rc[0].parentElement.classList.toggle('quiet', anySolo && !t.solo);   // silent while others are soloed
       rc.forEach((b, i) => {
         const st = lane[i], on = !!(st && st.on);
         const vel = st ? (st.vel ?? 100) : 100, chance = st ? (st.chance ?? 100) : 100;
