@@ -153,4 +153,3 @@ export const SYNTHS = {
   'Soft pluck':  {oct: 0, wave: 1, cut: 600, res: 0.3, envAmt: 0.7, dec: 180, ampDec: 300, sus: 0, rel: 150},
 };
 
-export const DRUM_NAMES = Object.keys(DRUMS), SYNTH_NAMES = Object.keys(SYNTHS);

@@ -11,12 +11,19 @@
  *   eng.toPerf(contextTime) // → performance.now() time of the moment it is heard
  */
 import {degToMidi} from '../scale.js';
+import {resolve, ENGINES} from './sounds.js';
 
 export const STEPS_PER_BAR = 16;
 
 export function compile(song){
-  const tracks = song.tracks.map(t => ({id: t.id, type: t.type, sound: t.sound || '', vol: t.vol ?? 0.8,
-    mute: !!t.mute, solo: !!t.solo, len: song.mode === 'more' ? (t.len | 0) : 0}));
+  const tracks = song.tracks.map(t => {
+    const o = {id: t.id, type: t.type, vol: t.vol ?? 0.8, mute: !!t.mute, solo: !!t.solo, len: song.mode === 'more' ? (t.len | 0) : 0};
+    if (t.type === 'drum' || t.type === 'synth'){
+      const r = resolve(t.sound, t.params);
+      o.engine = r.engine; o.vals = r.vals; o.rendered = !!ENGINES[r.engine].rendered; if (r.note != null) o.drumNote = r.note;
+    }
+    return o;
+  });
   const scenes = {};
   for (const [k, sc] of Object.entries(song.scenes || {})){
     const len = Math.max(1, Math.min(4, sc.bars | 0 || 1)) * STEPS_PER_BAR;
@@ -41,6 +48,45 @@ export async function createEngine(){
   const node = new AudioWorkletNode(ctx, 'spores-engine', {numberOfInputs: 0, outputChannelCount: [2]});
   const master = ctx.createGain(); master.gain.value = 0.9;
   node.connect(master).connect(ctx.destination);
+
+  // the pump instruments' sound code: compiled here, handed to the worklet (it can't fetch). Without it, COIL / ORBIT /
+  // FOLD / BOING tracks are silent and everything else plays as usual.
+  const wasmReady = fetch(new URL('./pump-synth.wasm', import.meta.url)).then(r => r.arrayBuffer()).then(b => WebAssembly.compile(b))
+    .then(module => { node.port.postMessage({t: 'wasm', module}); return true; }).catch(e => { console.warn('pump-synth.wasm', e); return false; });
+
+  /* Modal / Scanned: every note a track uses is recorded in a Worker and sent to the worklet. A track's recordings
+     are keyed by its settings; when they change, the notes are recorded again (a moment after the last change, so
+     dragging a setting doesn't queue hundreds). */
+  const worker = new Worker(new URL('./render-worker.js', import.meta.url), {type: 'module'});
+  const rec = new Map();   // track id → {key, done:Set(note), want:Set(note), waiters:Map(note → [resolve])}
+  let recTimer = 0, compiled = null;
+  worker.onmessage = e => {
+    const {id, key, note, data} = e.data, r = rec.get(id);
+    if (!r || r.key !== key) return;   // settings changed since: dropped
+    r.done.add(note); r.busy = false;
+    node.port.postMessage({t: 'buf', id, note, data}, [data.buffer]);
+    (r.waiters.get(note) || []).forEach(f => f()); r.waiters.delete(note);
+    pump();
+  };
+  function pump(){   // send the next wanted note (one at a time, so the newest settings win)
+    for (const [id, r] of rec){
+      if (r.busy) return;
+      for (const note of r.want) if (!r.done.has(note)){ r.busy = true; worker.postMessage({id, key: r.key, engine: r.engine, vals: r.vals, note, sr: ctx.sampleRate}); return; }
+    }
+  }
+  function planRecordings(c){
+    const seen = new Set();
+    c.tracks.forEach((t, ti) => {
+      if (!t.rendered) return; seen.add(t.id);
+      const key = t.engine + JSON.stringify(t.vals); let r = rec.get(t.id);
+      if (!r || r.key !== key){ r = {key, engine: t.engine, vals: t.vals, done: new Set(), want: new Set(), waiters: r ? r.waiters : new Map(), busy: false}; rec.set(t.id, r); }
+      for (const sc of Object.values(c.scenes)) for (const st of sc.steps[ti] || []) if (st) r.want.add(st.note);
+    });
+    for (const id of [...rec.keys()]) if (!seen.has(id)) rec.delete(id);
+    pump();
+  }
+  const recordNow = (id, note) => new Promise(res => { const r = rec.get(id); if (!r) return res();
+    if (r.done.has(note)) return res(); r.want.add(note); (r.waiters.get(note) || r.waiters.set(note, []).get(note)).push(res); pump(); });
 
   const subs = {step: [], sched: [], start: [], stop: []}, emit = (k, m) => subs[k].forEach(f => { try { f(m); } catch (e) { console.error(e); } });
   let song = null, pending = [], raf = 0, playing = false;
@@ -78,7 +124,11 @@ export async function createEngine(){
     ctx, node, toPerf,
     get playing(){ return playing; },
     on(k, f){ subs[k].push(f); return () => { subs[k] = subs[k].filter(g => g !== f); }; },
-    setSong(s){ song = s; node.port.postMessage({t: 'song', song: compile(s)}); },
+    wasmReady,
+    setSong(s){
+      song = s; compiled = compile(s); node.port.postMessage({t: 'song', song: compiled});
+      clearTimeout(recTimer); recTimer = setTimeout(() => planRecordings(compiled), rec.size ? 150 : 0);
+    },
     async play(mode = 'scene', scene = 'A', block = 0){ if (ctx.state !== 'running') await ctx.resume(); node.port.postMessage({t: 'play', mode, scene, block}); },
     stop(){ node.port.postMessage({t: 'stop'}); },
     scene(k){ node.port.postMessage({t: 'scene', scene: k}); },
@@ -87,6 +137,8 @@ export async function createEngine(){
       if (ctx.state !== 'running') await ctx.resume();
       const t = song && song.tracks[ti]; if (!t) return;
       const note = t.type === 'drum' ? (t.seedsNote ?? 36) : degToMidi(deg, song.key, song.scale, t.oct ?? 3);
+      const c = compiled && compiled.tracks[ti];
+      if (c && c.rendered){ planRecordings(compiled); await recordNow(t.id, note); }   // a Modal / Scanned note not recorded yet
       node.port.postMessage({t: 'hit', ti, note, vel, len: 0.25});
       return note;
     },
