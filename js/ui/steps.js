@@ -52,7 +52,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   // More only: swing (every second 16th comes late)
   const swing = el('input', {type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Swing'});
   const swingVal = el('span', {class: 'pval num'});
-  const swingWrap = el('label', {class: 'field', title: 'Every second 16th note comes late'}, 'Swing', swing, swingVal);
+  const swingWrap = el('label', {class: 'field hgroup', title: 'Every second 16th note comes late'}, 'Swing', swing, swingVal);
   swing.addEventListener('input', () => {
     const pc = +swing.value;
     swingVal.textContent = pc + '%';
@@ -69,8 +69,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
     el('div', {class: 'hgroup'},
       el('button', {class: 'tb', title: 'Arrange the scenes into a song', onclick: () => openSong()}, 'Song ›'),
       undoBtn, redoBtn, fileWrap),
-    el('div', {class: 'hgroup seg'}, simpleBtn, moreBtn),
-    swingWrap);
+    el('div', {class: 'hgroup seg'}, simpleBtn, moreBtn));
 
   /* ---- middle: track list and step grid ---- */
   const tracksEl = el('div', {class: 'tracks', 'aria-label': 'Tracks'});
@@ -127,7 +126,8 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   const bottom = el('footer', {class: 'bottom'},
     addWrap,
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Bars'), ...barBtns),
-    el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Note colours'), keyEl));
+    el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Note colours'), keyEl),
+    swingWrap);   // More only; down here so the header stays on one row on a laptop
 
   root.append(header, workspace, bottom);
   mountFileMenu(fileWrap, {store});
