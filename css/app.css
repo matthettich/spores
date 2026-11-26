@@ -7,6 +7,10 @@
   --selc: #ff3d8b;
   --radius: 0; --font: Futura, 'Futura PT', Jost, 'Century Gothic', 'Avenir Next', system-ui, sans-serif;
   --touch: 44px;
+  /* the Skin dialog's preview dots: every skin's colours, whichever skin is on (js/ui/skin.js) */
+  --sw-minimal-1: #ffffff; --sw-minimal-2: #111111; --sw-minimal-3: #ff3d8b;
+  --sw-black-1: #141416; --sw-black-2: #f4f4f6; --sw-black-3: #00e5ff;
+  --sw-pastel-1: #d6dbe4; --sw-pastel-2: #f8f9fb; --sw-pastel-3: #22958d;
 }
 /* 44 px is the minimum (AGENTS.md); a finger on glass wants a little more, so everything that is sized by --touch
    (steps, melody bars, buttons, fields) steps up on a touch screen. A mouse keeps the tighter layout. */

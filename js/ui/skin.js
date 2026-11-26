@@ -9,9 +9,9 @@ import {openDialog} from './dialog.js';
 const KEY = 'spores.skin';
 
 export const SKINS = [
-  {id: '', name: 'Minimal', note: 'White, square corners, black lines.', dots: ['#ffffff', '#111111', '#ff3d8b']},
-  {id: 'black', name: 'Minimal black', note: 'Black, white lines, cyan selection.', dots: ['#141416', '#f4f4f6', '#00e5ff']},
-  {id: 'pastel', name: 'Pastel light', note: 'Soft greys and blue, rounded corners.', dots: ['#d6dbe4', '#f8f9fb', '#22958d']},
+  {id: '', name: 'Minimal', note: 'White, square corners, black lines.', dots: ['minimal-1', 'minimal-2', 'minimal-3']},
+  {id: 'black', name: 'Minimal black', note: 'Black, white lines, cyan selection.', dots: ['black-1', 'black-2', 'black-3']},
+  {id: 'pastel', name: 'Pastel light', note: 'Soft greys and blue, rounded corners.', dots: ['pastel-1', 'pastel-2', 'pastel-3']},
 ];
 
 export function currentSkin(){
@@ -32,7 +32,7 @@ export function openSkinDialog(){
       const on = currentSkin() === sk.id;
       list.append(el('button', {class: 'skin' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false',
         onclick: () => { applySkin(sk.id); draw(); }},
-        el('span', {class: 'skindots'}, sk.dots.map(c => el('span', {class: 'skindot', style: {background: c}}))),
+        el('span', {class: 'skindots'}, sk.dots.map(c => el('span', {class: 'skindot', style: {background: `var(--sw-${c})`}}))),
         el('span', {class: 'skintext'},
           el('span', {class: 'skinname'}, sk.name),
           el('span', {class: 'note'}, sk.note))));
