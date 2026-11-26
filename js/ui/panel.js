@@ -14,6 +14,7 @@ import {ENGINES, SOUNDS, settingsFor} from '../engine/sounds.js';
 import {degToMidi, midiName} from '../scale.js';
 import {nudgeNote, setChance, setVelocity, stepAt} from './stepedit.js';
 import {SOUND_LISTS} from '../store.js';
+import {ask, openDialog} from './dialog.js';
 import * as midi from '../midi.js';
 import {el} from './dom.js';
 
@@ -53,6 +54,7 @@ export function mountPanel(root, {store, engine, state}){
     if (t.type === 'drum' || t.type === 'synth'){
       soundPicker(t, ti);
       settings(s, t, ti);
+      if (s.mode === 'more') presets(s, t, ti);
     } else if (t.type === 'midi'){
       midiTrack(t, ti);
     } else if (t.type === 'cv'){
@@ -62,6 +64,75 @@ export function mountPanel(root, {store, engine, state}){
     if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
     if (s.mode === 'more' && t.type === 'drum') seedsNote(t, ti);
     step(s, t, ti);
+  }
+
+  /* ---- sound presets (More): a sound plus its settings, kept in the song and put on any track of the same kind ---- */
+  function presets(s, t, ti){
+    const list = (s.presets || []).filter(p => (SOUND_LISTS[t.type] || []).includes(p.sound));
+    root.append(el('div', {class: 'psec'}, 'Sound presets'));
+
+    const sel = el('select', {'aria-label': 'Sound presets'});
+    sel.append(el('option', {value: ''}, list.length ? 'Apply a preset…' : 'No presets yet'));
+    for (const p of list) sel.append(el('option', {value: String(s.presets.indexOf(p))}, `${p.name} · ${p.sound}`));
+    const removeBtn = el('button', {class: 'tb', disabled: true, onclick: () => removePreset(+sel.value, sel, removeBtn)}, 'Remove');
+
+    sel.addEventListener('change', () => {
+      removeBtn.disabled = sel.value === '';
+      const p = (store.get().presets || [])[+sel.value];
+      if (!p) return;
+      store.edit('Preset', song => {   // the sound and its settings, as they were saved
+        const tr = song.tracks[ti];
+        tr.sound = p.sound;
+        tr.params = Object.assign({}, p.params);
+      });
+    });
+
+    // a save or a remove changes the list without rebuilding the panel
+    updaters.push((song, tr) => {
+      const keep = sel.value;
+      const live = (song.presets || []).filter(p => (SOUND_LISTS[tr.type] || []).includes(p.sound));
+      while (sel.options.length > 1) sel.remove(1);
+      for (const p of live) sel.append(el('option', {value: String(song.presets.indexOf(p))}, `${p.name} · ${p.sound}`));
+      sel.options[0].textContent = live.length ? 'Apply a preset…' : 'No presets yet';
+      sel.value = [...sel.options].some(o => o.value === keep) ? keep : '';
+      removeBtn.disabled = sel.value === '';
+    });
+
+    root.append(
+      el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Presets'), sel),
+      el('div', {class: 'sndrow'},
+        el('button', {class: 'tb', onclick: () => savePreset(t, ti)}, 'Save this sound'),
+        removeBtn));
+  }
+
+  function savePreset(t, ti){
+    const inp = el('input', {type: 'text', maxlength: '40', value: `${t.sound} preset`, 'aria-label': 'Preset name'});
+    openDialog({
+      title: 'Save this sound',
+      body: 'The sound and every setting on it are kept in the song, ready to put on another track of the same kind.',
+      content: [el('label', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Name'), inp)],
+      actions: [{label: 'Don’t save'}, {label: 'Save preset', primary: true, onClick: () => {
+        const name = (inp.value.trim() || `${t.sound} preset`).slice(0, 40);
+        store.edit('Save preset', song => {
+          const tr = song.tracks[ti];
+          song.presets = song.presets || [];
+          song.presets.push({name, sound: tr.sound, params: Object.assign({}, tr.params || {})});
+        });
+      }}],
+      focus: inp,
+    });
+  }
+
+  async function removePreset(i, sel, removeBtn){
+    const p = (store.get().presets || [])[i];
+    if (!p) return;
+    const ok = await ask({title: `Remove the preset “${p.name}”?`, body: 'The sound and its settings stay on this track.',
+      yes: 'Remove it', no: 'Keep it'});
+    if (!ok) return;
+    store.edit('Remove preset', song => { song.presets.splice(i, 1); });
+    // the list shifted under the select: show the “apply a preset” line again rather than another preset
+    sel.value = '';
+    removeBtn.disabled = true;
   }
 
   /* ---- MIDI track: which port, which channel, and its own clock ---- */

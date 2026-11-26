@@ -41,7 +41,7 @@ export function newSong(){
   tracks[7].oct = 4;
   return {v: VERSION, bpm: 120, swing: 0, key: 'C', scale: 'minor', lock: true, tracks,
     scenes: {A: {name: 'Scene A', bars: 1, steps: {}}}, song: [{scene: 'A', repeat: 4}],
-    link: {seedsPort: '', seedsCh: 16, clock: true}, mode: 'simple'};
+    presets: [], link: {seedsPort: '', seedsCh: 16, clock: true}, mode: 'simple'};
 }
 
 // A little song to hear straight away the first time Spores is opened (until she makes it her own): two scenes, so
@@ -102,6 +102,11 @@ export function migrate(input){
   s.scenes = Object.keys(scenes).length ? scenes : base.scenes;
   s.song = Array.isArray(s.song) ? s.song : base.song;
   s.link = Object.assign({}, base.link, s.link || {});
+  // sound presets: {name, sound, params}, optional (songs from before they existed just have none)
+  s.presets = Array.isArray(s.presets) ? s.presets
+    .filter(p => p && typeof p.sound === 'string' && p.sound && typeof p.name === 'string' && p.name)
+    .map(p => ({name: p.name.slice(0, 40), sound: p.sound,
+      params: p.params && typeof p.params === 'object' && !Array.isArray(p.params) ? p.params : {}})) : [];
   return s;
 }
 
