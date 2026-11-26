@@ -2,6 +2,35 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — phase 8 done: skins (and phase 7 merged cleanly)
+- **Phase 7 merge:** pulled Claude's CV work (`b0d632f`) and re-checked phase 8's pieces against it: `+ Add track ▾ ›
+  CV track` still makes "CV 1" with `CV · out 3 / 4` on its row and a "CV outputs" section in the panel; the help
+  button, the preset section and the 48 px touch token all still open and measure as before; Undo removes the new CV
+  track again; no console errors.
+- **Skins:** a skin is only a different set of `:root` values (docs/seeds-style-guide.md "Skins"); the components
+  already read nothing else. Two more sets in `css/app.css`: `:root[data-skin="black"]` (near-black bench and panels,
+  white lines, brighter signals, cyan `--selc`) and `:root[data-skin="pastel"]` (grey-blue bench, soft `--edge`, 10 px
+  corners, IBM Plex stack, pink `--selc`). Minimal stays the default and sets no attribute.
+- **Where:** File › Skin… lists three skins with swatches, a name and a line; the current one is filled and picking one
+  applies at once. It is kept per computer in localStorage `spores.skin`, not in the song, so a song looks the same
+  wherever it is opened, and Undo never takes a skin back.
+- **First paint:** `index.html` has a three-line inline script in `<head>` that copies `spores.skin` onto `<html
+  data-skin>` before the app boots, so there is no flash of the old skin. `js/ui/skin.js` owns the rest (`applySkin`,
+  `currentSkin`, `openSkinDialog`, the `SKINS` list).
+- **Not made:** Pastel (follows the system), Minimal colors, Monotone, Minimal colors black and Neon. Neon needs a
+  shadow/glow token and the "colors" skins need module-family tints, which Spores has no equivalent of (one panel
+  colour, no module families). A new skin is a `:root[data-skin="…"]` block plus an entry in `SKINS`.
+- **Tested in headless Chrome:** the dialog lists Minimal (filled), Minimal black and Pastel light; picking black sets
+  `data-skin`, stores it, body rgb(14,14,16), `--selc` #00e5ff, radius 0, and moves the filled row; Pastel light gives
+  bench rgb(214,219,228), 10 px button corners, the IBM Plex stack and pink `--selc`. Ink on panel is 17.2 / 15.5 /
+  13.1 to 1 in the three skins (the filled row 13–15 to 1). The store JSON is identical before and after a skin change,
+  Ctrl+Z leaves the skin alone, a reload keeps it, and with `js/main.js` blocked the head script alone still applies it
+  (attribute set, body dark, no app markup). On a 390×844 touch viewport all three keep `--touch` 48 px, no control
+  under 48 and no sideways scroll. Read the Steps screen in each skin, the Skin dialog on a black skin and the Song
+  screen on a black skin as screenshots. No console errors.
+- **Odd:** "Pastel light" only adds font and corner tokens, so on a machine without IBM Plex Sans Condensed or Arial
+  Narrow it falls back to system-ui and looks like Minimal with softer edges.
+
 ## 2026-11-26 — phase 7 done: CV tracks (Claude)
 - **Making one:** "+ Add track ▾ › CV track" makes "CV 1" on outputs 3 / 4 (the next CV track gets 5 / 6, and so on;
   1–2 carry the music). The track list says "CV · out 3 / 4" (and "· tuned"). No volume row: a CV track's level is its notes.
