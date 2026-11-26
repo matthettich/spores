@@ -84,10 +84,10 @@ export function mountPanel(root, {store, engine, state}){
     ch.addEventListener('change', () => store.edit('MIDI channel', s => { s.tracks[ti].midi.ch = +ch.value; }));
     root.append(el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Channel'), ch));
 
-    const clock = el('input', {type: 'checkbox', id: 'midi-clock-' + ti});
+    const clock = el('input', {type: 'checkbox'});
     clock.checked = !!t.midi.clock;
     clock.addEventListener('change', () => store.edit('MIDI clock', s => { s.tracks[ti].midi.clock = clock.checked; }));
-    root.append(el('label', {class: 'checkrow', for: 'midi-clock-' + ti}, clock, el('span', {}, 'Send clock and Start / Stop to this port')));
+    root.append(el('label', {class: 'checkrow'}, clock, el('span', {}, 'Send clock and Start / Stop to this port')));
     updaters.push((song, tr) => {   // Undo / Redo / a reload of the song keep the controls honest
       if (document.activeElement !== sel) sel.value = tr.midi.port || '';
       if (document.activeElement !== ch) ch.value = String(tr.midi.ch || 1);
@@ -224,9 +224,8 @@ export function mountPanel(root, {store, engine, state}){
       const v = tr.seedsNote ?? 36;
       if (document.activeElement !== inp) inp.value = String(v);
     });
-    root.append(el('div', {class: 'prow'},
-      el('span', {class: 'plabel', title: 'The note sent to Seeds on every hit'}, 'Seeds note'),
-      inp, el('p', {class: 'note', style: {textAlign: 'right'}}, 'to Seeds')));
+    root.append(el('div', {class: 'prow wide'},
+      el('span', {class: 'plabel', title: 'The note sent to Seeds on every hit'}, 'Seeds note'), inp));
   }
 
   /* ---- selected step: Note / Velocity / Chance, all through store.edit (so Undo works) ---- */

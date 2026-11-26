@@ -88,23 +88,26 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   gridWrap.addEventListener('scroll', () => { tracksEl.scrollTop = gridWrap.scrollTop; });
   tracksEl.addEventListener('scroll', () => { gridWrap.scrollTop = tracksEl.scrollTop; });
 
-  /* ---- bottom: add track (a menu: which kind), bars, note colours ---- */
+  /* ---- bottom: add track, bars, note colours ---- */
+  // the button adds a drum (one tap, the common case); the small ▾ next to it offers the other two kinds
   const addMenu = el('div', {class: 'menu up', role: 'menu', hidden: true});
-  const addBtn = el('button', {class: 'tb', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
-    onclick: e => { e.stopPropagation(); addMenu.hidden ? openAdd() : closeAdd(); }}, '+ Add track');
-  for (const [type, label] of [['drum', 'Drum track'], ['synth', 'Synth track'], ['midi', 'MIDI track']])
+  const addBtn = el('button', {class: 'tb', title: 'Add a drum track', onclick: () => addTrack('drum')}, '+ Add track');
+  const addMoreBtn = el('button', {class: 'tb', title: 'Add a synth or MIDI track', 'aria-label': 'Add a synth or MIDI track',
+    'aria-haspopup': 'menu', 'aria-expanded': 'false',
+    onclick: e => { e.stopPropagation(); addMenu.hidden ? openAdd() : closeAdd(); }}, '▾');
+  for (const [type, label] of [['synth', 'Synth track'], ['midi', 'MIDI track']])
     addMenu.append(el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack(type); }}, label));
-  const addWrap = el('div', {class: 'menu-wrap'}, addBtn, addMenu);
+  const addWrap = el('div', {class: 'hgroup seg menu-wrap'}, addBtn, addMoreBtn, addMenu);
   function openAdd(){
     addMenu.hidden = false;
-    addBtn.setAttribute('aria-expanded', 'true');
+    addMoreBtn.setAttribute('aria-expanded', 'true');
     document.addEventListener('pointerdown', outsideAdd, true);
     document.addEventListener('keydown', escAdd, true);
   }
   function closeAdd(){
     if (addMenu.hidden) return;
     addMenu.hidden = true;
-    addBtn.setAttribute('aria-expanded', 'false');
+    addMoreBtn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outsideAdd, true);
     document.removeEventListener('keydown', escAdd, true);
   }
@@ -121,7 +124,6 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   root.append(header, workspace, bottom);
   mountFileMenu(fileWrap, {store});
   const panel = mountPanel(panelEl, {store, engine, state});
-  midi.onChange(() => drawTracks());   // a port plugged in or out: show its name in the track list
 
   /* ---- actions ---- */
   function togglePlay(){
@@ -400,7 +402,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
     swingVal.textContent = Math.round((s.swing || 0) * 100) + '%';
     if (document.activeElement !== swing) swing.value = Math.round((s.swing || 0) * 100);
     addBtn.textContent = `+ Add track (${s.tracks.length} of ${MAX_TRACKS})`;
-    addBtn.disabled = s.tracks.length >= MAX_TRACKS;
+    addBtn.disabled = addMoreBtn.disabled = s.tracks.length >= MAX_TRACKS;
     undoBtn.disabled = !store.canUndo;
     redoBtn.disabled = !store.canRedo;
     drawScenes(s);
