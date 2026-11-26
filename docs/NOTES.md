@@ -2,6 +2,35 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — phase 4 done: melody lane and step editing
+- Melody lane (`js/ui/steps.js`): under the grid for the selected Synth / MIDI / CV track, one bar per step with the
+  height = pitch, in the note colours and with the note name under each bar. It sticks to the bottom of the grid area,
+  scrolls sideways with the steps, outlines the selected note and is marked by the playhead. Tap a bar to select that
+  step (it does not toggle it). The lane's ▲ ▼ move the selected note one scale step (via `nudgeNote` in
+  `js/ui/stepedit.js`), so notes stay in key. Drum tracks have no pitch, so the lane hides for them.
+- Step editing (`js/ui/panel.js`): the Selected step section is now editable — Note ▲ ▼ with the note name, a Velocity
+  slider (1–127) and, in More only, a Chance slider (0–100 %). Drums hide the Note row. All through
+  `store.edit('Step note' / 'Step velocity' / 'Step chance')`, via `js/ui/stepedit.js`, so Undo, Redo and autosave
+  work; Velocity and Chance drags merge into one Undo (added to `MERGE_LABELS` in `js/store.js`).
+- Grid feedback: a white corner on a step whose velocity or chance was changed, a dashed bottom in More for steps
+  with chance below 100 %, and the values in the cell's tooltip.
+- Tested in headless Chrome (1440×900): the Bass lane shows 16 cells, 7 bars (8–60 px tall) named C, C, A♭…; a drum
+  track hides it; tapping a bar selects without toggling; lane ▲ turns C2 into D2 and Undo puts it back; arrows disable
+  on an off step; key D renames lane and grid; playing marks one melody cell. Panel: Simple shows Note C2, ▲ ▼,
+  velocity 100, no Chance; ▲ gives D2 and Undo C2; velocity 60 marks the cell and shows "Velocity 60 · chance 100%",
+  Undo restores it; a four-event drag is one Undo; More shows Chance and 50 % reaches the worklet's compiled song;
+  a drum step hides Note but keeps Velocity / Chance; velocity 70 / chance 40 play, survive a reload with their marks;
+  Simple hides Chance again and keeps the value. No console errors.
+- Not tested: real speakers, a touch screen, a normal Chrome window; `tests/*.mjs` not re-run (`js/engine/` untouched).
+- Fixed while testing: after selecting a drum track the lane kept its old cells, so coming back to the same melodic
+  track never rebuilt it (names went stale, selections did not show). Changing to a drum track now clears the lane.
+- Half done / later: note editing is one scale step at a time — no note picker / piano; no drag-painting of steps; one
+  selected step at a time; the lane shows only the selected track; chance is only visible on the grid in More (the
+  engine ignores it in Simple); in More the step controls sit below every sound setting, so they need scrolling.
+- Odd: the lane's ▲ ▼ work on the selected step, which is also selected by tapping a bar or holding a grid step —
+  three ways in, one behaviour. The melody lane sticks to the bottom of the grid, so it stays visible while the track
+  list scrolls; with fewer tracks than the window it sits right under the last row instead.
+
 ## 2026-11-26 — phase 3 done: save, load, undo / redo
 - Undo / redo (`js/store.js`): every `store.edit` keeps the song as it was before it, up to 80 steps, and Redo keeps
   what was undone. A dragged slider is one step (Sound setting / Volume / Swing edits within 600 ms merge), so Undo
