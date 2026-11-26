@@ -24,7 +24,10 @@ export function mountSong(root, {store, engine, openSteps}){
   /* ---- header: back to the steps, Play, Tempo ---- */
   const playBtn = el('button', {class: 'tb play', 'aria-label': 'Play or stop the song', onclick: () => togglePlay()}, '▶ Play');
   const bpm = el('input', {class: 'num', type: 'number', min: 20, max: 300, step: 1, 'aria-label': 'Tempo'});
-  bpm.addEventListener('change', () => store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); }));
+  bpm.addEventListener('change', () => {
+    store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); });
+    bpm.value = store.get().bpm;   // a typed 999 or a blank shows the tempo that is really playing
+  });
   const undoBtn = el('button', {class: 'tb', title: 'Undo', onclick: () => store.undo()}, 'Undo');
   const redoBtn = el('button', {class: 'tb', title: 'Redo', onclick: () => store.redo()}, 'Redo');
 

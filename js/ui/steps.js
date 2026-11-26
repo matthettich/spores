@@ -23,7 +23,10 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   /* ---- header: Play, Tempo, Key + scale, scenes, Song / Undo, Simple / More ---- */
   const playBtn = el('button', {class: 'tb play', 'aria-label': 'Play or stop', onclick: () => togglePlay()}, '▶ Play');
   const bpm = el('input', {class: 'num', type: 'number', min: 20, max: 300, step: 1, 'aria-label': 'Tempo'});
-  bpm.addEventListener('change', () => store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); }));
+  bpm.addEventListener('change', () => {
+    store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); });
+    bpm.value = store.get().bpm;   // a typed 999 or a blank shows the tempo that is really playing
+  });
 
   const keySel = el('select', {'aria-label': 'Key'});
   KEYS.forEach(k => keySel.append(el('option', {value: k}, k)));
@@ -33,7 +36,9 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   for (const [id, sc] of Object.entries(SCALES)) scaleSel.append(el('option', {value: id}, sc.name));
   scaleSel.addEventListener('change', () => store.edit('Scale', s => { s.scale = scaleSel.value; }));
 
-  const lockBtn = el('button', {class: 'tb', title: 'Keep notes in this key', 'aria-pressed': 'true',
+  // Lock: song.lock is stored but nothing uses it yet (open question in docs/NOTES.md), so the button stays hidden
+  // rather than offer a control that does nothing. Show it again once it has a job.
+  const lockBtn = el('button', {class: 'tb', hidden: true, title: 'Keep notes in this key', 'aria-pressed': 'true',
     onclick: () => store.edit('Key lock', s => { s.lock = !s.lock; })}, 'Lock');
 
   const scenesEl = el('div', {class: 'scenes'});
@@ -153,6 +158,8 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   }
 
   function setBars(n){
+    // a selected step past the new end would keep showing (and editing) a step she can no longer see
+    if (state.step != null && state.step >= clamp(n, 1, 4) * STEPS_PER_BAR) state.step = null;
     store.edit('Bars', s => { const sc = s.scenes[state.scene]; if (sc) sc.bars = clamp(n, 1, 4); });
   }
 
@@ -285,10 +292,11 @@ export function mountSteps(root, {store, engine, midi, openSong}){
         const vel = st ? (st.vel ?? 100) : 100, chance = st ? (st.chance ?? 100) : 100;
         b.classList.toggle('on', on);
         b.classList.toggle('sel', state.track === ti && state.step === i);
-        // a white corner means velocity or chance was changed; More also marks steps that may skip
-        b.classList.toggle('mark', on && (vel !== 100 || chance !== 100));
-        b.classList.toggle('chance', on && s.mode === 'more' && chance < 100);
-        b.title = on ? `Velocity ${vel} · chance ${chance}%` : '';
+        // a white corner means velocity (or, in More, chance) was changed; Simple ignores chance, so it doesn't show it
+        const more = s.mode === 'more';
+        b.classList.toggle('mark', on && (vel !== 100 || (more && chance !== 100)));
+        b.classList.toggle('chance', on && more && chance < 100);
+        b.title = on ? (more ? `Velocity ${vel} · chance ${chance}%` : `Velocity ${vel}`) : '';
         if (on && t.type !== 'drum'){
           const c = noteColor(st.deg || 0, s.scale);
           b.style.setProperty('--top', c.top);
@@ -446,10 +454,12 @@ export function mountSteps(root, {store, engine, midi, openSong}){
     if (h) h(s); else sync(s);
   });
 
-  // Ctrl/Cmd+Z, Shift+Z (or Ctrl+Y) anywhere except while typing in a field
+  // Ctrl/Cmd+Z, Shift+Z (or Ctrl+Y) anywhere except while typing in a field. Sliders and tick boxes keep focus
+  // after a drag, so they don't count as typing: Ctrl+Z straight after a slider move undoes it.
+  const NOT_TYPING = new Set(['range', 'checkbox', 'button', 'radio']);
   window.addEventListener('keydown', e => {
     const t = e.target;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !NOT_TYPING.has(t.type)))) return;
     if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === 'z'){ e.preventDefault(); if (e.shiftKey) store.redo(); else store.undo(); }
