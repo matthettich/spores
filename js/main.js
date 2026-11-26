@@ -10,6 +10,9 @@ const engine = await createEngine();
 engine.setSong(store.get());
 store.subscribe(s => engine.setSong(s));
 
+// Closing or reloading the tab writes the (delayed) autosave straight away, so the last tap is not lost.
+window.addEventListener('pagehide', () => store.saveNow());
+
 const steps = mountSteps(document.getElementById('app'), {store, engine, midi});
 engine.on('step', m => steps.playhead(m));
 engine.on('stop', () => steps.stopped());

@@ -14,9 +14,10 @@
  */
 import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
 
-export const VERSION = 1, MAX_TRACKS = 16, SCENES = 'ABCDEFGH'.split('');
+export const VERSION = 1, MAX_TRACKS = 16, SCENES = 'ABCDEFGH'.split(''), STORAGE_KEY = 'spores.song';
 const HISTORY = 80, MERGE_MS = 600;
 const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing']);
+const TYPES = ['drum', 'synth', 'midi', 'cv'];
 
 // GM drum notes, so a drum track's seedsNote is something sensible in Seeds and in any drum machine
 const GM = {'Kick': 36, 'Boom kick': 35, 'Snare': 38, 'Clap': 39, 'Closed hat': 42, 'Open hat': 46, 'Tom': 45, 'Rim': 37,
@@ -54,29 +55,97 @@ export function demoSong(){
   return s;
 }
 
-/* Old song files must keep opening: bump VERSION and add a step here whenever the format changes. */
-export function migrate(s){
+// A saved file may be the song itself, or {app, song} if one is ever written with a wrapper.
+function unwrap(o){
+  return o && typeof o === 'object' && o.song && Array.isArray(o.song.tracks) ? o.song : o;
+}
+
+/* Is this something we can open? Used before a file replaces the song on screen, so a stray JSON cannot wipe it. */
+export function isSong(input){
+  const o = unwrap(input);
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+  if (!Array.isArray(o.tracks) || !o.tracks.length) return false;
+  if (!o.scenes || typeof o.scenes !== 'object' || !Object.keys(o.scenes).length) return false;
+  return o.tracks.every(t => t && typeof t.id === 'string' && TYPES.includes(t.type));
+}
+
+/* Old song files must keep opening: bump VERSION and add a step here whenever the format changes.
+   Missing or odd fields are filled in so a half-old file cannot crash a screen. */
+export function migrate(input){
+  const s = unwrap(input);
   if (!s || typeof s !== 'object') return newSong();
   s.v = s.v || 1;
   // (v1 is the first format; future: if (s.v === 1){ …; s.v = 2; })
   const base = newSong();
   for (const k of ['bpm', 'swing', 'key', 'scale', 'lock', 'mode']) if (s[k] === undefined) s[k] = base[k];
   s.tracks = Array.isArray(s.tracks) && s.tracks.length ? s.tracks.slice(0, MAX_TRACKS) : base.tracks;
-  s.scenes = s.scenes && Object.keys(s.scenes).length ? s.scenes : base.scenes;
+  s.tracks.forEach(fixTrack);
+  const scenes = {};
+  for (const [k, sc] of Object.entries(s.scenes && typeof s.scenes === 'object' ? s.scenes : {})){
+    if (!SCENES.includes(k) || !sc || typeof sc !== 'object') continue;
+    scenes[k] = {name: typeof sc.name === 'string' && sc.name ? sc.name : 'Scene ' + k,
+      bars: Math.max(1, Math.min(4, sc.bars | 0 || 1)),
+      steps: sc.steps && typeof sc.steps === 'object' ? sc.steps : {}};
+  }
+  s.scenes = Object.keys(scenes).length ? scenes : base.scenes;
   s.song = Array.isArray(s.song) ? s.song : base.song;
   s.link = Object.assign({}, base.link, s.link || {});
   return s;
 }
 
+function fixTrack(t){
+  if (typeof t.id !== 'string' || !t.id) t.id = 't' + Date.now().toString(36) + (nextId++);
+  if (!TYPES.includes(t.type)) t.type = 'drum';
+  if ((t.type === 'drum' || t.type === 'synth') && (typeof t.sound !== 'string' || !t.sound))
+    t.sound = t.type === 'drum' ? 'Kick' : 'Acid bass';
+  if (!t.name) t.name = t.sound || (t.type === 'midi' ? 'MIDI' : t.type === 'cv' ? 'CV' : 'Track');
+  t.midi = Object.assign({port: '', ch: 1, clock: false}, t.midi && typeof t.midi === 'object' ? t.midi : {});
+  t.cv = Object.assign({pitch: 3, gate: 4, cal: null}, t.cv && typeof t.cv === 'object' ? t.cv : {});
+  t.params = t.params && typeof t.params === 'object' && !Array.isArray(t.params) ? t.params : {};
+  if (typeof t.vol !== 'number' || !isFinite(t.vol)) t.vol = 0.8;
+  if (typeof t.oct !== 'number') t.oct = 3;
+  if (typeof t.len !== 'number') t.len = 0;
+  if (typeof t.seedsNote !== 'number') t.seedsNote = GM[t.sound] ?? 36;
+  t.mute = !!t.mute; t.solo = !!t.solo;
+}
+
+// The song saved in this browser (localStorage), or null if there is none or it cannot be read.
+function loadSaved(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    return isSong(o) ? o : null;
+  } catch (e){ return null; }
+}
+
 export function createStore(initial){
-  let song = migrate(initial || demoSong());
+  let song = migrate(initial || loadSaved() || demoSong());
   const subs = [];
   const past = [], future = [];          // JSON copies: the song before each edit, and what Redo brings back
-  let lastLabel = '', lastAt = 0;
+  let lastLabel = '', lastAt = 0, saveTimer = 0;
 
   const snap = () => JSON.stringify(song);
   const notify = label => { for (const f of subs) f(song, label); };
   const push = json => { past.push(json); if (past.length > HISTORY) past.shift(); future.length = 0; };
+
+  /* The song saves itself to this browser a moment after each change, so a reload keeps it. The short delay keeps a
+     slider drag from writing to localStorage sixty times a second; js/main.js calls saveNow() when the tab is hidden. */
+  function save(){
+    clearTimeout(saveTimer); saveTimer = 0;
+    try { localStorage.setItem(STORAGE_KEY, snap()); } catch (e) { /* private mode or full: carry on in memory */ }
+  }
+  const persist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 250); };
+
+  // replace the whole song (New song, Open a file). Still undoable: nothing is lost.
+  function replace(s, label = 'load'){
+    const before = snap();
+    song = migrate(s);
+    if (snap() !== before) push(before);
+    lastLabel = '';
+    persist();
+    notify(label);
+  }
 
   return {
     get: () => song,
@@ -91,16 +160,17 @@ export function createStore(initial){
       const merge = MERGE_LABELS.has(label) && label === lastLabel && now - lastAt < MERGE_MS && past.length > 0;
       if (!merge) push(before);            // one drag of a slider is one Undo, not sixty
       lastLabel = label; lastAt = now;
+      persist();
       notify(label);
     },
 
-    // replace the whole song (New song, Open a file). Still undoable: nothing is lost.
-    replace(s, label = 'load'){
-      const before = snap();
-      song = migrate(s);
-      if (snap() !== before) push(before);
-      lastLabel = '';
-      notify(label);
+    replace,
+
+    // Open a song object (from a file). Returns false, and changes nothing, if it is not a Spores song.
+    load(o){
+      if (!isSong(o)) return false;
+      replace(unwrap(o), 'load');
+      return true;
     },
 
     undo(){
@@ -108,6 +178,7 @@ export function createStore(initial){
       future.push(snap());
       song = migrate(JSON.parse(past.pop()));
       lastLabel = '';
+      persist();
       notify('undo');
       return true;
     },
@@ -117,12 +188,16 @@ export function createStore(initial){
       past.push(snap());
       song = migrate(JSON.parse(future.pop()));
       lastLabel = '';
+      persist();
       notify('redo');
       return true;
     },
 
     get canUndo(){ return past.length > 0; },
     get canRedo(){ return future.length > 0; },
+
+    saveNow: save,
+    serialize: () => JSON.stringify(song, null, 2),
 
     subscribe(f){ subs.push(f); return () => subs.splice(subs.indexOf(f), 1); },
   };
