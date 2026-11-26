@@ -6,6 +6,10 @@
   <title>...Spores</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="css/app.css">
+  <!-- the saved skin (js/ui/skin.js): inline so the first paint is already in it, not two frames of the old one -->
+  <script>
+    try { var s = localStorage.getItem('spores.skin'); if (s) document.documentElement.dataset.skin = s; } catch (e) {}
+  </script>
 </head>
 <body>
   <div id="app"></div>

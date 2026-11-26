@@ -3,10 +3,11 @@
  * Save a copy downloads the song as JSON (store.serialize). Open reads a JSON file and checks it is a Spores song
  * before asking; both New and Open ask first, and both go through store.replace, so Undo brings the old song back
  * (nothing is lost). The song also saves itself in the browser (js/store.js), so there is no plain "Save".
- * Seeds link… opens the link settings (js/ui/link.js).
+ * Seeds link… opens the link settings (js/ui/link.js); Skin… picks the look (js/ui/skin.js).
  */
 import {isSong, newSong} from '../store.js';
 import {openSeedsLink} from './link.js';
+import {openSkinDialog} from './skin.js';
 import {el} from './dom.js';
 import {ask, toast} from './dialog.js';
 
@@ -19,7 +20,7 @@ export function mountFileMenu(host, {store}){
 
   const item = (label, fn) => el('button', {role: 'menuitem', onclick: () => { close(); fn(); }}, label);
   menu.append(item('New song', startNew), item('Open a song file…', () => input.click()), item('Save a copy…', saveCopy),
-    item('Seeds link…', () => openSeedsLink(store)));
+    item('Seeds link…', () => openSeedsLink(store)), item('Skin…', openSkinDialog));
   host.append(btn, menu, input);
 
   function open(){
