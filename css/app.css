@@ -1,0 +1,41 @@
+/* css/app.css: tokens first (from docs/seeds-style-guide.md, Minimal skin), then components.
+   Components use only the variables: a skin is a different set of values on :root. */
+:root {
+  --bench: #ffffff; --panel: #ffffff; --panel-2: #f4f4f5; --edge: #111111; --ink: #111111; --muted: #6b6b73;
+  --track: #e6e6ea; --glass: #050607;
+  --video: #e3962a; --audio: #22958d; --mod: #7a58c8; --gate: #c93d78; --gate-dark: #86214c; --record: #cc3a2c;
+  --selc: #ff3d8b;
+  --radius: 0; --font: Futura, 'Futura PT', Jost, 'Century Gothic', 'Avenir Next', system-ui, sans-serif;
+  --touch: 44px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bench); color: var(--ink); font: 14px/1.3 var(--font); }
+button, input, select { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* top bar */
+.bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--edge); flex-wrap: wrap; }
+.app-name { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin-right: 8px; }
+.tb { min-height: var(--touch); min-width: var(--touch); padding: 6px 14px; background: var(--panel-2); border: 1px solid var(--edge);
+  border-radius: var(--radius); font-weight: 500; cursor: pointer; }
+.tb:hover { background: var(--track); }
+.tb.on { background: var(--ink); color: var(--panel); }
+.tb.play.on { background: var(--gate); border-color: var(--gate-dark); color: #fff; }
+.field { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.field input { width: 64px; min-height: var(--touch); padding: 4px 8px; border: 1px solid var(--edge); border-radius: var(--radius); background: var(--panel); color: var(--ink); }
+.hint { color: var(--muted); font-size: 12.5px; }
+
+/* steps grid (phase 1: a plain test grid; phase 2 builds the real Steps screen) */
+.steps { padding: 12px; display: grid; gap: 6px; }
+.row { display: grid; grid-template-columns: 150px 1fr; gap: 8px; align-items: stretch; }
+.trk { min-height: var(--touch); display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--edge);
+  background: var(--panel); cursor: pointer; text-align: left; border-radius: var(--radius); }
+.trk .sw { width: 6px; align-self: stretch; margin: 6px 0; background: var(--gate); }
+.trk .sub { color: var(--muted); font-size: 12px; }
+.cells { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 4px; }
+.cell { min-height: var(--touch); border: 1px solid var(--edge); background: var(--panel); border-radius: var(--radius); cursor: pointer;
+  font-size: 12px; font-weight: 600; padding: 0; position: relative; }
+.cell:nth-child(4n+1):not(:first-child) { margin-left: 8px; }
+.cell.on { background: linear-gradient(var(--top, var(--gate)), var(--bottom, var(--gate-dark))); color: var(--txt, #fff); }
+.cell.now { outline: 3px solid var(--selc); outline-offset: 1px; }
+.status { padding: 8px 12px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--edge); }
