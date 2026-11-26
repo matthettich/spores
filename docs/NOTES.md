@@ -2,6 +2,40 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — phase 3 done: save, load, undo / redo
+- Undo / redo (`js/store.js`): every `store.edit` keeps the song as it was before it, up to 80 steps, and Redo keeps
+  what was undone. A dragged slider is one step (Sound setting / Volume / Swing edits within 600 ms merge), so Undo
+  after a drag goes back to the value before the drag. Header Undo and Redo buttons disable when there is nothing to
+  do; Ctrl/Cmd+Z, Shift+Z and Ctrl+Y work anywhere except while typing. `replace()` (New song, Open) goes on the same
+  history, so loading a file can be undone too.
+- Saving in the browser: the song autosaves to `localStorage` (`spores.song`) 250 ms after each change, and at once
+  on `pagehide` (`js/main.js`), so a reload, even straight after a tap, keeps it. On start the store opens the saved
+  song; the demo groove only appears on the very first run. A save that is not a Spores song is ignored (demo instead)
+  and odd tracks / scenes are filled in by `migrate()`, so a half-old or corrupt save cannot crash a screen.
+- Files: a new File menu (`js/ui/filebar.js`) with **New song**, **Open a song file…** and **Save a copy…**. Save
+  downloads the song as JSON (`store.serialize()`). Open reads a `.json`, checks `isSong()` before asking, and asks
+  with named buttons before replacing anything; New asks too. Dialogs and toasts are in `js/ui/dialog.js` and follow
+  the style guide (named buttons, safe answer focused, Escape = no, colours only from `:root`).
+- Tested in headless Chrome (puppeteer, 1440×900, `python3 -m http.server`): two Undo / Redo button states at start;
+  a step toggles, undoes and redoes (grid and song agree); Ctrl+Z / Shift+Ctrl+Z add and remove a track; a six-event
+  slider drag is one Undo and one Redo; draining the history disables Undo. First run has no save; tapping a step,
+  key D and + Add track are all in `spores.song` after 250 ms; reload keeps 9 tracks, key D, the steps and the grid;
+  a tap straight before a reload survives it; a broken localStorage value loads the demo with no errors and the next
+  edit writes a good save. File menu lists three items, Escape closes it; "Keep this song" changes nothing; Save
+  produces `spores-2026-11-26.json` with 9 tracks, key D and the lit steps; "Start fresh" gives an empty 8-track song
+  and Undo restores the 9-track one; opening the saved file asks, restores key D and its 20 lit steps, and Undo / Redo
+  step over the load; a `{"hello":1}` file is refused with a toast and the song is untouched. Finally: a new 4-track
+  beat (4 / 2 / 2 / 4 steps) plays, survives a reload, plays again, and an edit can be undone. No console errors in
+  any of these runs.
+- Not tested: real speakers, a touch screen, a normal Chrome window; `tests/*.mjs` not re-run (`js/engine/` unchanged).
+- Half done / later: the undo history is not saved across a reload (it starts empty again — deliberate for now); there
+  is no visible "saved" indicator, so autosave is silent; the format has no song name, so saved files are named by
+  date (`spores-2026-11-26.json`); only JSON files, no bundled copy of the sounds; the Song screen is still phase 5
+  and MIDI / CV tracks phase 6 / 7.
+- Odd: if `localStorage` is off (private mode, full disk) the error is swallowed and the song lives in memory only —
+  it works but will not survive a reload, and nothing tells her yet. Opening a file replaces the browser save on the
+  next change, which is what we want, but it does mean there is no "unsaved" state to warn about.
+
 ## 2026-11-26 — phase 2 done: the Steps screen
 - Built (✅, `js/engine/` untouched): `js/ui/steps.js` replaces the phase-1 test grid with the real screen. Header:
   Play / Stop, Tempo, Key + scale + Lock (`song.lock`, stored only, no other effect yet as the brief said), scene
