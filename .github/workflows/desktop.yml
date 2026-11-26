@@ -1,6 +1,6 @@
 # Builds the Spores desktop app (Electron) for the Mac on GitHub's machines (copied from ...Seeds' workflow).
 #
-#   Try a build:  Actions → Desktop app → Run workflow (pick the dev branch). The .dmg files are downloads on the run's
+#   Try a build:  Actions → Desktop app → Run workflow (pick the dev branch), or push a change to desktop/ on dev. The .dmg files are downloads on the run's
 #                 page (only you can see them; they expire after 90 days): arm64 = Apple silicon, x64 = Intel.
 #   Release it:   Run workflow with a version typed in (e.g. 0.1.0), or push a tag:  git tag v0.1.0  then  git push origin v0.1.0
 #                 The .dmg goes on a GitHub Release; installed copies offer it when they next check.
@@ -23,6 +23,9 @@ on:
         default: false
   push:
     tags: ['v*.*.*']
+    # A test build whenever the wrapper itself changes on dev ("Run workflow" only appears once this file is on main).
+    branches: [dev]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
 
 permissions:
   contents: read
