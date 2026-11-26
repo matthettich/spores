@@ -2,6 +2,25 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — phase 9 review done (Claude); Electron build planned, not started
+- **Checked:** `js/ui/`, `js/store.js`, `js/main.js`, `css/` against AGENTS.md and for beginner confusion. No file over
+  600 lines, no npm in the app, no colours outside `:root` in CSS, every control ≥ 44 px (smoke test at 1440×900).
+  All five `tests/*.mjs` pass (engine timing 170 BPM exact, bass 65.2 Hz, AABAA, MIDI clock 20.82–20.86 ms, CV, sounds).
+- **Fixed (one commit each theme):** `edit()` rolls back a change that throws; one failing subscriber no longer blocks
+  the engine; a toast when the browser won't keep the song; a plain message instead of a blank page if the engine
+  can't start · Ctrl+Z works right after a slider drag; tempo field shows the real tempo after 999 / blank; fewer bars
+  clears a hidden selected step; Simple no longer marks or mentions chance; **Lock hidden** (it does nothing yet) ·
+  track name follows its sound when it was the sound's name; More › Length follows Undo; clearer step hint; one CV
+  `devicechange` listener (was one per panel rebuild) and the device change reads the track fresh after Undo · skin
+  preview dots use `:root` variables.
+- **Left for Matt to decide:** what Lock should do (then unhide it); MIDI / CV in the add-track menu even in Simple
+  (could go behind More); Simple / More is in the song and on the Undo stack (Undo can flip the mode; opening a file
+  can change it); changing sound clears its settings (Undo restores them, but nothing says so); "block" vs "scene"
+  wording on the Song screen, and + Add block always adds scene A; no track delete / rename / solo UI; song blocks
+  reorder by mouse drag only (no touch); a >16-track file loses the extras silently; `fixTrack` defaults a missing
+  `oct` to 3 but new synths get 2.
+- **Not tested:** real speakers, touch hardware, a normal Chrome window.
+
 ## 2026-11-26 — phase 8 done: skins (and phase 7 merged cleanly)
 - **Phase 7 merge:** pulled Claude's CV work (`b0d632f`) and re-checked phase 8's pieces against it: `+ Add track ▾ ›
   CV track` still makes "CV 1" with `CV · out 3 / 4` on its row and a "CV outputs" section in the panel; the help
