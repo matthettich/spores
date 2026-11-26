@@ -93,6 +93,23 @@ p { margin: 0; }
 .note { font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .sline { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-height: 32px; font-size: 13px; }
 
+/* file menu, dialog and toast */
+.menu-wrap { position: relative; }
+.menu { position: absolute; z-index: 20; top: calc(100% + 4px); right: 0; min-width: 200px; padding: 4px;
+  display: flex; flex-direction: column; gap: 2px; background: var(--panel); border: 1px solid var(--edge);
+  box-shadow: 4px 4px 0 var(--track); }
+.menu button { min-height: var(--touch); padding: 6px 10px; text-align: left; background: transparent; border: 0; cursor: pointer; }
+.menu button:hover { background: var(--panel-2); }
+.scrim { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px;
+  background: color-mix(in srgb, var(--ink) 30%, transparent); }
+.dialog { width: min(420px, 100%); padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  background: var(--panel); border: 1px solid var(--edge); }
+.dtitle { margin: 0; font-size: 17px; font-weight: 600; }
+.dialog .note { font-size: 14px; }
+.dacts { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.toast { position: fixed; z-index: 50; top: 14px; left: 50%; transform: translateX(-50%); padding: 8px 14px;
+  font-size: 13px; background: var(--ink); color: var(--panel); border-radius: var(--radius); }
+
 /* bottom bar */
 .bottom { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 12px; border-top: 1px solid var(--edge); }
 .key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }

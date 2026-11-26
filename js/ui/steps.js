@@ -9,6 +9,7 @@ import {STEPS_PER_BAR} from '../engine/engine.js';
 import {KEYS, SCALES, noteColor, degName} from '../scale.js';
 import {SCENES, MAX_TRACKS, SOUND_LISTS, newTrack} from '../store.js';
 import {mountPanel} from './panel.js';
+import {mountFileMenu} from './filebar.js';
 import {el} from './dom.js';
 
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
@@ -38,6 +39,7 @@ export function mountSteps(root, {store, engine}){
   const moreBtn = el('button', {class: 'tb', onclick: () => setMode('more')}, 'More');
   const undoBtn = el('button', {class: 'tb', title: 'Undo', onclick: () => store.undo()}, 'Undo');
   const redoBtn = el('button', {class: 'tb', title: 'Redo', onclick: () => store.redo()}, 'Redo');
+  const fileWrap = el('div', {class: 'menu-wrap'});
 
   // More only: swing (every second 16th comes late)
   const swing = el('input', {type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Swing'});
@@ -57,7 +59,7 @@ export function mountSteps(root, {store, engine}){
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Scenes'), scenesEl),
     el('div', {class: 'hgroup'},
       el('button', {class: 'tb', disabled: true, title: 'The Song screen comes in phase 5'}, 'Song ›'),
-      undoBtn, redoBtn),
+      undoBtn, redoBtn, fileWrap),
     el('div', {class: 'hgroup seg'}, simpleBtn, moreBtn),
     swingWrap);
 
@@ -83,6 +85,7 @@ export function mountSteps(root, {store, engine}){
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Note colours'), keyEl));
 
   root.append(header, workspace, bottom);
+  mountFileMenu(fileWrap, {store});
   const panel = mountPanel(panelEl, {store, engine, state});
 
   /* ---- actions ---- */
