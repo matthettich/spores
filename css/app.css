@@ -8,6 +8,9 @@
   --radius: 0; --font: Futura, 'Futura PT', Jost, 'Century Gothic', 'Avenir Next', system-ui, sans-serif;
   --touch: 44px;
 }
+/* 44 px is the minimum (AGENTS.md); a finger on glass wants a little more, so everything that is sized by --touch
+   (steps, melody bars, buttons, fields) steps up on a touch screen. A mouse keeps the tighter layout. */
+@media (pointer: coarse) { :root { --touch: 48px; } }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; background: var(--bench); color: var(--ink); font: 14px/1.3 var(--font); }
