@@ -172,7 +172,9 @@ export function mountPanel(root, {store, engine, state}){
   /* ---- sound ---- */
   function pick(name, ti){
     if (!name) return;
-    store.edit('Sound', s => { const t = s.tracks[ti]; t.sound = name; t.params = {}; });
+    // a track still named after its sound ("Kick") takes the new sound's name, so the list never says
+    // "Kick · Snare"; a name she chose herself ("Bass") stays
+    store.edit('Sound', s => { const t = s.tracks[ti]; if (!t.name || t.name === t.sound) t.name = name; t.sound = name; t.params = {}; });
     Promise.resolve(engine.hit(ti, 0)).catch(() => {});
   }
 
@@ -280,6 +282,7 @@ export function mountPanel(root, {store, engine, state}){
       sel.append(el('option', {value: String(n)}, n ? `${n} steps` : 'Same as the scene'));
     sel.value = String(t.len || 0);
     sel.addEventListener('change', () => store.edit('Track length', s => { s.tracks[ti].len = +sel.value; }));
+    updaters.push((song, tr) => { if (document.activeElement !== sel) sel.value = String(tr.len || 0); });
     root.append(el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Length'), sel));
   }
 
@@ -306,7 +309,9 @@ export function mountPanel(root, {store, engine, state}){
     const where = () => ({scene: state.scene, trackId: t.id, index: state.step});
 
     const stepNum = el('span', {class: 'pval num'}, '—');
-    const hint = el('p', {class: 'note'}, 'Tap and hold a step (or right-click it) to see its note.');
+    const pickHint = () => t.type === 'drum' ? 'Tap and hold a step (or right-click it) to change how loud it is.'
+      : 'Tap and hold a step (or right-click it) to change its note.';
+    const hint = el('p', {class: 'note'}, pickHint());
 
     // Note: ▲ ▼ move it a scale step, so it stays in key. Drums have no pitch, so this row hides.
     const noteVal = el('span', {class: 'pval num'}, '—');
@@ -346,7 +351,7 @@ export function mountPanel(root, {store, engine, state}){
       const on = !!(st && st.on);
       stepNum.textContent = state.step == null ? '—' : String(state.step + 1);
       hint.hidden = state.step != null && on;
-      hint.textContent = state.step == null ? 'Tap and hold a step (or right-click it) to see its note.' : 'This step is off. Tap it to turn it on.';
+      hint.textContent = state.step == null ? pickHint() : 'This step is off. Tap it to turn it on.';
       noteRow.hidden = tr.type === 'drum' || !on;
       velRow.hidden = !on;
       if (chanceRow) chanceRow.hidden = !on;

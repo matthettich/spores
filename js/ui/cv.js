@@ -26,6 +26,10 @@ const chanOptions = (sel, n, cur) => {
   sel.value = String(cur);
 };
 
+// one 'devicechange' listener at a time: the panel rebuilds this section on every selection, and each old
+// listener would otherwise stay attached to a select that is no longer on screen
+let onDeviceChange = null;
+
 /* The panel section. Returns an updater (Undo / Redo keep the controls honest). */
 export function cvSection(root, {store, engine, t, ti, mode}){
   root.append(el('div', {class: 'psec'}, 'CV outputs'));
@@ -45,11 +49,20 @@ export function cvSection(root, {store, engine, t, ti, mode}){
     saveSettings({device: dev.value}); fillChannels(); warn();
   });
   fillDevices();
-  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', fillDevices);
+  const md = navigator.mediaDevices;
+  if (md && md.addEventListener){
+    if (onDeviceChange) md.removeEventListener('devicechange', onDeviceChange);
+    onDeviceChange = fillDevices;
+    md.addEventListener('devicechange', onDeviceChange);
+  }
   root.append(el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Device'), dev));
 
   const pitch = el('select', {'aria-label': 'Pitch output'}), gate = el('select', {'aria-label': 'Gate output'});
-  const fillChannels = () => { const n = engine.outputChannels; chanOptions(pitch, n, t.cv.pitch || 3); chanOptions(gate, n, t.cv.gate || 4); };
+  // read the track fresh: after an Undo the song is a new copy, and `t` is the old one
+  const fillChannels = () => {
+    const tr = store.get().tracks[ti] || t, n = engine.outputChannels;
+    chanOptions(pitch, n, tr.cv.pitch || 3); chanOptions(gate, n, tr.cv.gate || 4);
+  };
   fillChannels();
   pitch.addEventListener('change', () => store.edit('CV pitch output', s => { s.tracks[ti].cv.pitch = +pitch.value; }));
   gate.addEventListener('change', () => store.edit('CV gate output', s => { s.tracks[ti].cv.gate = +gate.value; }));
