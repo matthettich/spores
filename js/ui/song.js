@@ -18,6 +18,7 @@ const repeatOf = b => clamp((b && b.repeat) | 0 || 1, 1, 64);
 export function mountSong(root, {store, engine, openSteps}){
   let playing = false;
   let pos = {block: 0, rep: 0, counter: 0, live: false};
+  let dragFrom = null;                        // the block being dragged, while it is dragged
 
   /* ---- header: back to the steps, Play, Tempo ---- */
   const playBtn = el('button', {class: 'tb play', 'aria-label': 'Play or stop the song', onclick: () => togglePlay()}, '▶ Play');
@@ -53,7 +54,7 @@ export function mountSong(root, {store, engine, openSteps}){
     el('section', {class: 'ssection'},
       el('div', {class: 'sline-h'},
         el('span', {class: 'psec'}, 'Scenes'),
-        el('span', {class: 'hint'}, 'Tap a scene to add it to the end of the song.')),
+        el('span', {class: 'hint'}, 'Tap a scene to add it to the end of the song · Copy puts a copy in the next empty scene · a name can be changed')),
       libEl));
 
   root.append(header, body);
@@ -75,6 +76,23 @@ export function mountSong(root, {store, engine, openSteps}){
   function addSceneBlock(k){
     store.edit('Add block', song => { song.song.push({scene: k, repeat: 1, loop: false}); });
     toast(`Scene ${k} added to the end of the song.`);
+  }
+
+  function copyScene(k){
+    const s = store.get(), free = SCENES.find(x => !s.scenes[x]);
+    if (!free) return;
+    store.edit('Copy scene', song => {
+      const src = song.scenes[k];
+      song.scenes[free] = {name: `Copy of ${src.name || 'Scene ' + k}`, bars: src.bars || 1,
+        steps: JSON.parse(JSON.stringify(src.steps || {}))};   // a copy, not a second name for the same notes
+    });
+    toast(`Copied scene ${k} into scene ${free}.`);
+  }
+
+  function moveBlock(from, to){
+    const n = store.get().song.length;
+    if (from == null || from === to || from < 0 || to < 0 || from >= n || to >= n) return;
+    store.edit('Reorder song', song => { const [b] = song.song.splice(from, 1); song.song.splice(to, 0, b); });
   }
 
   function setRepeat(i, v){
@@ -116,7 +134,7 @@ export function mountSong(root, {store, engine, openSteps}){
     pick.value = b.scene;
     pick.addEventListener('change', () => store.edit('Block scene', song => { if (song.song[i]) song.song[i].scene = pick.value; }));
 
-    return el('div', {class: 'sblk'},
+    const card = el('div', {class: 'sblk', draggable: 'true'},
       el('div', {class: 'sblk-head'},
         pick,
         el('span', {class: 'sblk-name'}, sc.name || `Scene ${b.scene}`)),
@@ -130,6 +148,18 @@ export function mountSong(root, {store, engine, openSteps}){
           onclick: () => store.edit('Loop block', song => { if (song.song[i]) song.song[i].loop = !song.song[i].loop; })}, 'Loop'),
         el('button', {class: 'tb', title: 'Remove this block from the song', 'aria-label': 'Remove block',
           onclick: () => removeBlock(i, sc.name || `Scene ${b.scene}`)}, '×')));
+
+    // drag a block onto another one to put it there
+    card.addEventListener('dragstart', e => {
+      dragFrom = i;
+      if (e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); }
+      card.classList.add('drag');
+    });
+    card.addEventListener('dragend', () => { dragFrom = null; card.classList.remove('drag'); });
+    card.addEventListener('dragover', e => { if (dragFrom != null && dragFrom !== i){ e.preventDefault(); card.classList.add('over'); } });
+    card.addEventListener('dragleave', () => card.classList.remove('over'));
+    card.addEventListener('drop', e => { e.preventDefault(); card.classList.remove('over'); moveBlock(dragFrom, i); });
+    return card;
   }
 
   function drawBlocks(s){
@@ -144,18 +174,27 @@ export function mountSong(root, {store, engine, openSteps}){
 
   function drawLibrary(s){
     libEl.innerHTML = '';
+    const free = SCENES.find(x => !s.scenes[x]);
     SCENES.filter(k => s.scenes[k]).forEach(k => {
       const sc = s.scenes[k];
       const on = (sc.steps && Object.values(sc.steps).flat().filter(st => st && st.on).length) || 0;
       const used = blocks(s).filter(({b}) => b.scene === k).length;
+      const name = el('input', {class: 'libname', type: 'text', maxlength: '40',
+        value: sc.name || `Scene ${k}`, 'aria-label': `Name of scene ${k}`});
+      name.addEventListener('change', () => {
+        const v = name.value.trim() || `Scene ${k}`;
+        if (v === sc.name) return;
+        store.edit('Scene name', song => { if (song.scenes[k]) song.scenes[k].name = v; });
+      });
       libEl.append(el('div', {class: 'libcard'},
-        el('div', {class: 'libcard-t'},
-          el('span', {class: 'libletter'}, k),
-          el('span', {class: 'libname'}, sc.name || `Scene ${k}`)),
+        el('div', {class: 'libcard-t'}, el('span', {class: 'libletter'}, k), name),
         el('p', {class: 'note'}, `${bars(sc)} bar${bars(sc) > 1 ? 's' : ''} · ${on} step${on === 1 ? '' : 's'} on`
           + (used ? ` · in the song ${used}×` : ' · not in the song')),
         el('div', {class: 'librow'},
-          el('button', {class: 'tb', onclick: () => addSceneBlock(k)}, '+ Add to song'))));
+          el('button', {class: 'tb', onclick: () => addSceneBlock(k)}, 'Add to song'),
+          el('button', {class: 'tb', disabled: !free,
+            title: free ? 'Put a copy of this scene in the next empty scene' : 'All eight scenes are in use',
+            onclick: () => copyScene(k)}, 'Copy'))));
     });
   }
 

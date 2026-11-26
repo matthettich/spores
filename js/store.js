@@ -10,7 +10,8 @@
  *                    settingsFor(track.sound) in js/engine/sounds.js. Clear it when the sound changes.
  *
  * Undo keeps the song as it was before each edit (a JSON copy — a song is a few KB), up to HISTORY steps. Consecutive
- * slider moves (Sound setting / Volume / Swing within 600 ms) count as one step, so one drag is one Undo.
+ * slider moves (Sound setting / Volume / Swing / Step velocity / Step chance within 600 ms) count as one step, so one
+ * drag is one Undo — but only on the same target (edit's third argument, e.g. one step or one setting).
  */
 import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
 

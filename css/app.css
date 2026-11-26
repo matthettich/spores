@@ -143,6 +143,9 @@ p { margin: 0; }
 .sblocks { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 10px; min-height: 60px; }
 .sblk { flex: 0 0 184px; width: 184px; padding: 8px; display: flex; flex-direction: column; gap: 8px;
   border: 1px solid var(--edge); background: var(--panel); }
+.sblk[draggable=true] { cursor: grab; }
+.sblk.drag { opacity: .55; }
+.sblk.over { box-shadow: inset 0 0 0 2px var(--selc); }
 .sblk-head { display: flex; align-items: center; gap: 8px; }
 .sblk-pick { min-height: var(--touch); width: 62px; padding: 2px 4px; font-weight: 700; }
 .sblk-name { font-weight: 600; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -163,9 +166,10 @@ p { margin: 0; }
 .libcard-t { display: flex; align-items: center; gap: 10px; }
 .libletter { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px;
   background: var(--ink); color: var(--panel); font-weight: 700; }
-.libname { font-size: 16px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.librow { display: flex; flex-wrap: wrap; gap: 8px; }
-.librow .tb { flex: 1; }
+.libname { flex: 1; min-width: 0; min-height: var(--touch); font-size: 15px; font-weight: 600; }
+.librow { display: flex; gap: 8px; }
+.librow .tb { flex: 1; padding: 6px 8px; }
+.librow .tb:last-child { flex: 0 0 78px; }
 
 /* bottom bar */
 .bottom { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 12px; border-top: 1px solid var(--edge); }
