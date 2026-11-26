@@ -2,6 +2,50 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — phase 6 done: MIDI tracks and the Seeds link
+- Adding tracks: "+ Add track" is now a small menu (Drum track / Synth track / MIDI track), because a MIDI track
+  could not be made at all before (`js/ui/steps.js`). A new synth takes the first unused synth sound, a MIDI track is
+  "MIDI 1", "MIDI 2"… and takes no local sound.
+- MIDI tracks (`js/ui/panel.js`): port (every Web MIDI output, or "No port yet"; a saved port that is unplugged now
+  stays in the list so it comes back), channel 1–16, and "Send clock and Start / Stop to this port". The track list
+  says what it is wired to — "MIDI · IAC Driver Bus 1 · ch 3" or "no port yet" — and the panel relists ports when one
+  is plugged in or out. MIDI tracks are melodic like synths: note colours, melody lane, Note / Velocity / Chance.
+- Seeds link (`js/ui/link.js`, new; File › Seeds link…): the virtual port Spores and Seeds share, the channel the drum
+  hits go out on (16 by default), and "Send clock and Start / Stop", with a line on making the port (IAC Driver / loopMIDI)
+  and a note when the browser has no MIDI. All three are `link.*` in the song, so they save and undo with it.
+- More: a drum track gets "Seeds note" (0–127, its `seedsNote`, default the GM note: Kick 36, Snare 38, Hat 42…), the
+  note that track sends to Seeds on every hit. Out-of-range numbers clamp. The MIDI port / channel / clock selects and
+  this field now follow Undo and Redo instead of keeping a stale value.
+- Fixed a phase 4 slip found here: in Simple the selected-step section printed a stray "null" under the hint, because
+  `root.append(…, chanceRow || null)` writes the text "null" (dom.js's `el()` filters those, plain `append` does not).
+- Files: `js/ui/link.js` (new), `js/ui/steps.js` (add-track menu, MIDI line in the track list), `js/ui/panel.js` (MIDI
+  section, Seeds note, updaters), `js/ui/filebar.js` (menu item), `css/app.css` (.menu.up, .checkrow). `js/midi.js` and
+  `js/engine/` were read, not changed.
+- Tested in headless Chrome with a fake `navigator.requestMIDIAccess` (two ports, every byte recorded): the add menu
+  lists the three kinds; a MIDI track makes "MIDI 1" selected with "no port yet · ch 1"; the port list is No port yet /
+  IAC Driver Bus 1 / loopMIDI; port + channel 3 + clock write through and the list line follows; one MIDI step at 120 BPM
+  sends note-on `0x92` note 36 velocity 100, note-off `0x82`, Start `0xFA`, 84 clock bytes `0xF8` and Stop `0xFC` to that
+  port only; Undo removes the step. Seeds link dialog: File lists Seeds link…, the dialog shows Off / IAC Driver Bus 1 /
+  loopMIDI, channel 16, clock ticked and its explanations; loopMIDI + channel 15 + clock off writes
+  `{seedsPort, seedsCh: 15, clock: false}`, Done and Escape close it; playing then sends the drum hits as `0x9E` note 36,
+  38, 42, 46… with no clock or Start; clock back on sends Start and 66 clocks in 1.2 s; Undo puts the clock back. Seeds
+  note: only in More, 36 for Kick; 40 writes and the kick sends 40; Undo restores 36 in the song and the field; 500 clamps
+  to 127; a synth has no row. Timing at 170 BPM with the link on: 180 clock bytes in 2.5 s, gaps 14.66–14.72 ms (24 per
+  beat = 14.706 ms, so no drift in the timestamps handed to Web MIDI), Start present. A browser without MIDI: the panel
+  says "MIDI is not available in this browser (Chrome has it)." with a single "No MIDI ports found" option, and the Seeds
+  link dialog says the same. No console errors.
+- Not tested: real MIDI hardware (IAC Driver, loopMIDI or a synth), Seeds itself, a normal Chrome window — the port, the
+  bytes and the timestamps were checked against a fake Web MIDI output, not measured at a device. `tests/*.mjs` not
+  re-run (`js/engine/` untouched).
+- Half done / later: no MIDI input (MIDI learn, a keyboard); no "send a test note" button to check a port without
+  playing; MIDI note length is whatever the engine already uses (not settable); no per-track MIDI transpose beyond the
+  root octave; the Seeds link dialog is only on the Steps screen's File menu — the Song screen has no File menu; CV
+  tracks are still the phase 7 placeholder; ports are only the ones Web MIDI lists (device changes are picked up, but
+  there is no refresh button).
+- Odd: the link settings live in the song file, so they travel with a song and can be undone like anything else. A MIDI
+  track is silent on this computer by design (its steps only go out of the port). Drum hits always go out on the Seeds
+  link channel, never on a drum track's own channel (drum tracks have no MIDI channel of their own).
+
 ## 2026-11-26 — phase 5 done: scenes A–H, the Song screen, Undo merging per step
 - Undo merging first (`js/store.js`): `store.edit(label, fn, key)` takes an optional key naming what changed, and two
   edits merge into one Undo only when the label AND the key match. Dragging Velocity on one step is still one Undo;
