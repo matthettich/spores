@@ -2,6 +2,26 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — handover to Claude: phase 7 (CV tracks) is next
+- **State:** phases 1–6 are done on `dev` (tips: `a94a00a`, phase 6 + its review), tree clean, everything pushed. Phase
+  7 is untouched: there is no CV code in `js/engine/`, and `js/ui/panel.js` still shows its placeholder — "A CV track.
+  The pitch and gate outputs arrive in phase 7." A CV track cannot even be created yet: `addTrack(type)` in
+  `js/ui/steps.js` offers Drum / Synth / MIDI only.
+- **Phase 7 from docs/SPEC.md:** CV tracks: pitch + gate on chosen output channels, Tune CV (1 V/oct), DC-coupled
+  interface check. Marked 🔴, so it is Claude's (AGENTS.md rule 6) — and it is the one thing the last agent stopped for.
+- **Already in place:** `track.cv = {pitch, gate, cal}` (newTrack / fixTrack in `js/store.js`), `track.oct` for the root,
+  `deg` on steps. Grid, note colours, melody lane, Note / Velocity / Chance and Undo already treat `cv` like
+  synth / MIDI (nothing type-checks for 'cv' except the panel's placeholder and the TYPE maps in panel.js / steps.js).
+- **Missing (engine side):** `compile()` in `js/engine/engine.js` gives a CV track no engine, so its steps are silent;
+  nothing writes `cal`; SPEC's "Tune CV…" dialog does not exist; the `pitch` / `gate` channel selects are not drawn.
+  The panel's `cv` branch is the hook for all of that.
+- **Verification limits here:** no audio device, no DC-coupled interface, no CV gear in this sandbox, and no MIDI
+  hardware either — MIDI was checked against a fake Web MIDI port (bytes and timestamps, clock gaps 14.66–14.72 ms at
+  170 BPM). `tests/*.mjs` have not been re-run since phase 3 because `js/engine/` has not changed; re-run them after
+  touching the engine.
+- **After CV:** phase 8 has been started — touch sizes, help text and sound presets are on `dev` (see the phase 8 entry
+  below); skins are not started.
+
 ## 2026-11-26 — phase 6 done: MIDI tracks and the Seeds link
 - Adding tracks: "+ Add track" adds a drum in one tap (as in phases 2–5); the small ▾ beside it opens a menu with
   Synth track / MIDI track, because those could not be made at all before (`js/ui/steps.js`). A new synth takes the
