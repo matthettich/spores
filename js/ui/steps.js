@@ -10,6 +10,7 @@ import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js
 import {SCENES, MAX_TRACKS, SOUND_LISTS, newTrack} from '../store.js';
 import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
+import {openHelp} from './help.js';
 import {nudgeNote} from './stepedit.js';
 import {el} from './dom.js';
 
@@ -54,6 +55,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
 
   const header = el('header', {class: 'hdr'},
     el('span', {class: 'app-name'}, '...Spores'),
+    el('button', {class: 'tb', title: 'How Spores works', 'aria-label': 'Help', onclick: () => openHelp()}, '?'),
     playBtn,
     el('label', {class: 'field'}, 'Tempo', bpm),
     el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Key'), keySel, scaleSel, lockBtn),

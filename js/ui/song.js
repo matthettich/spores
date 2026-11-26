@@ -9,6 +9,7 @@ import {STEPS_PER_BAR} from '../engine/engine.js';
 import {noteColor} from '../scale.js';
 import {el} from './dom.js';
 import {ask, toast} from './dialog.js';
+import {openHelp} from './help.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const bars = sc => clamp((sc && sc.bars) | 0 || 1, 1, 4);
@@ -30,6 +31,7 @@ export function mountSong(root, {store, engine, openSteps}){
   const header = el('header', {class: 'hdr'},
     el('button', {class: 'tb', title: 'Back to the steps', onclick: () => openSteps()}, '‹ Steps'),
     el('span', {class: 'app-name'}, '...Spores · Song'),
+    el('button', {class: 'tb', title: 'How Spores works', 'aria-label': 'Help', onclick: () => openHelp()}, '?'),
     playBtn,
     el('label', {class: 'field'}, 'Tempo', bpm),
     el('div', {class: 'hgroup'}, undoBtn, redoBtn),
