@@ -2,6 +2,20 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — visual polish pass: calmer, more professional (Claude)
+- **Done:** empty steps are soft fills (`--step`, every other group of four `--step-beat`), no black outlines; track rows
+  are hairline-separated and exactly one lane (`--lane`) tall; M / S are small boxes inside 44 px buttons (solo uses the new
+  `--solo` token); header regrouped (name · Steps | Song · Play + BPM readout · Key · scenes ··· Undo / Redo · File ·
+  Simple | More · ?) with one `.seg` segmented-switch style; panel title/sections/rows per the style guide; bottom bar
+  quieter (Bars as a segmented switch, borderless note chips); Song screen shares the header, hints are one muted line
+  per section, scene cards use hairline + soft fill, − × 4 + is a stepper, remove is a quiet ×. New tokens
+  (`--step`, `--step-beat`, `--solo`, `--lane`) exist in :root and in the black and pastel skins.
+- **Notes:** "Song ›" / "‹ Steps" became a Steps | Song switch (same behaviour). Below 1380 px the Key / Scene captions
+  hide so the header keeps one row at 1280. Visible "block" words on the Song screen now say "scene".
+- **Tested:** headless Chrome 1440x830, 1470x880, 1280x760: no page scroll, header one row, 1-bar grid not scrolling,
+  no control under 44 px, track rows level with lanes (same offset on all 8), no console errors; engine-check and
+  cv-ui-check pass.
+
 ## 2026-11-26 — laptop fit pass for the Mac window (Claude)
 - **Done:** Steps and Song now fit 1440x830, 1470x880 and 1280x760 with the header on one row and all 16 steps of one bar
   showing (grid 812/812 at 1280, no sideways scroll). Track list and panel widths use clamp() on vw, header gaps and

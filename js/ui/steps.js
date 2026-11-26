@@ -23,7 +23,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
 
   /* ---- header: Play, Tempo, Key + scale, scenes, Song / Undo, Simple / More ---- */
   const playBtn = el('button', {class: 'tb play', 'aria-label': 'Play or stop', onclick: () => togglePlay()}, '▶ Play');
-  const bpm = el('input', {class: 'num', type: 'number', min: 20, max: 300, step: 1, 'aria-label': 'Tempo'});
+  const bpm = el('input', {type: 'number', min: 20, max: 300, step: 1, 'aria-label': 'Tempo'});
   bpm.addEventListener('change', () => {
     store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); });
     bpm.value = store.get().bpm;   // a typed 999 or a blank shows the tempo that is really playing
@@ -42,11 +42,11 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   const lockBtn = el('button', {class: 'tb', hidden: true, title: 'Keep notes in this key', 'aria-pressed': 'true',
     onclick: () => store.edit('Key lock', s => { s.lock = !s.lock; })}, 'Lock');
 
-  const scenesEl = el('div', {class: 'scenes'});
+  const scenesEl = el('div', {class: 'scenes seg', role: 'group', 'aria-label': 'Scenes'});
   const simpleBtn = el('button', {class: 'tb', onclick: () => setMode('simple')}, 'Simple');
   const moreBtn = el('button', {class: 'tb', onclick: () => setMode('more')}, 'More');
-  const undoBtn = el('button', {class: 'tb', title: 'Undo', onclick: () => store.undo()}, 'Undo');
-  const redoBtn = el('button', {class: 'tb', title: 'Redo', onclick: () => store.redo()}, 'Redo');
+  const undoBtn = el('button', {class: 'tb quiet', title: 'Undo', onclick: () => store.undo()}, 'Undo');
+  const redoBtn = el('button', {class: 'tb quiet', title: 'Redo', onclick: () => store.redo()}, 'Redo');
   const fileWrap = el('div', {class: 'menu-wrap'});
 
   // More only: swing (every second 16th comes late)
@@ -59,17 +59,20 @@ export function mountSteps(root, {store, engine, midi, openSong}){
     store.edit('Swing', s => { s.swing = pc / 100; });
   });
 
+  // the same left side on both screens (js/ui/song.js): name, Steps | Song, then Play and the tempo
   const header = el('header', {class: 'hdr'},
     el('span', {class: 'app-name'}, '...Spores'),
-    el('button', {class: 'tb', title: 'How Spores works', 'aria-label': 'Help', onclick: () => openHelp()}, '?'),
-    playBtn,
-    el('label', {class: 'field'}, 'Tempo', bpm),
-    el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Key'), keySel, scaleSel, lockBtn),
-    el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Scenes'), scenesEl),
-    el('div', {class: 'hgroup'},
-      el('button', {class: 'tb', title: 'Arrange the scenes into a song', onclick: () => openSong()}, 'Song ›'),
-      undoBtn, redoBtn, fileWrap),
-    el('div', {class: 'hgroup seg'}, simpleBtn, moreBtn));
+    el('div', {class: 'seg', role: 'group', 'aria-label': 'Screen'},
+      el('button', {class: 'tb on', 'aria-pressed': 'true', title: 'The step grid'}, 'Steps'),
+      el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Arrange the scenes into a song', onclick: () => openSong()}, 'Song')),
+    el('div', {class: 'hgroup'}, playBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
+    el('div', {class: 'hgroup'}, el('span', {class: 'cap opt'}, 'Key'), keySel, scaleSel, lockBtn),
+    el('div', {class: 'hgroup'}, el('span', {class: 'cap opt'}, 'Scene'), scenesEl),
+    el('span', {class: 'hspace'}),
+    el('div', {class: 'hgroup'}, undoBtn, redoBtn),
+    fileWrap,
+    el('div', {class: 'seg', role: 'group', 'aria-label': 'Simple or More'}, simpleBtn, moreBtn),
+    el('button', {class: 'tb help', title: 'How Spores works', 'aria-label': 'Help', onclick: () => openHelp()}, '?'));
 
   /* ---- middle: track list and step grid ---- */
   const tracksEl = el('div', {class: 'tracks', 'aria-label': 'Tracks'});
@@ -104,7 +107,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
     onclick: e => { e.stopPropagation(); addMenu.hidden ? openAdd() : closeAdd(); }}, '▾');
   for (const [type, label] of [['synth', 'Synth track'], ['midi', 'MIDI track'], ['cv', 'CV track']])
     addMenu.append(el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack(type); }}, label));
-  const addWrap = el('div', {class: 'hgroup seg menu-wrap'}, addBtn, addMoreBtn, addMenu);
+  const addWrap = el('div', {class: 'menu-wrap'}, el('div', {class: 'seg'}, addBtn, addMoreBtn), addMenu);
   function openAdd(){
     addMenu.hidden = false;
     addMoreBtn.setAttribute('aria-expanded', 'true');
@@ -125,8 +128,8 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   const keyEl = el('div', {class: 'key'});
   const bottom = el('footer', {class: 'bottom'},
     addWrap,
-    el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Bars'), ...barBtns),
-    el('div', {class: 'hgroup'}, el('span', {class: 'muted small'}, 'Note colours'), keyEl),
+    el('div', {class: 'hgroup'}, el('span', {class: 'cap'}, 'Bars'), el('div', {class: 'seg', role: 'group', 'aria-label': 'Bars'}, ...barBtns)),
+    el('div', {class: 'hgroup'}, el('span', {class: 'cap'}, 'Note colours'), keyEl),
     swingWrap);   // More only; down here so the header stays on one row on a laptop
 
   root.append(header, workspace, bottom);
@@ -241,10 +244,10 @@ export function mountSteps(root, {store, engine, midi, openSong}){
       if (t.type === 'cv') sub.push(`out ${t.cv.pitch} / ${t.cv.gate}` + (t.cv.cal ? ' · tuned' : ''));
       const mute = el('button', {class: 'mute' + (t.mute ? ' on' : ''), title: 'Mute this track',
         'aria-label': 'Mute ' + (t.name || TYPE[t.type]), 'aria-pressed': t.mute ? 'true' : 'false',
-        onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, 'M');
+        onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, el('span', {class: 'mbox'}, 'M'));
       const solo = el('button', {class: 'mute solo' + (t.solo ? ' on' : ''), title: 'Solo: hear only this track (and other soloed ones)',
         'aria-label': 'Solo ' + (t.name || TYPE[t.type]), 'aria-pressed': t.solo ? 'true' : 'false',
-        onclick: e => { e.stopPropagation(); store.edit('Solo', s2 => { s2.tracks[ti].solo = !s2.tracks[ti].solo; }); }}, 'S');
+        onclick: e => { e.stopPropagation(); store.edit('Solo', s2 => { s2.tracks[ti].solo = !s2.tracks[ti].solo; }); }}, el('span', {class: 'mbox'}, 'S'));
       const tname = el('span', {class: 'tname', title: 'Double-click to rename'}, t.name);
       tname.addEventListener('dblclick', e => { e.stopPropagation(); renameTrack(store, t.id); });
       const row = el('div', {class: 'track' + (ti === state.track ? ' sel' : '') + (anySolo && !t.solo ? ' quiet' : ''), role: 'button', tabindex: '0',
@@ -278,7 +281,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
       const rc = [];
       for (let i = 0; i < len; i++){
         const b = el('button', {type: 'button', 'aria-label': `Step ${i + 1}`});
-        b.className = 'cell' + (i % 16 === 0 && i > 0 ? ' barstart' : i % 4 === 0 && i > 0 ? ' beatstart' : '');
+        b.className = 'cell' + (i % 8 < 4 ? ' dk' : '') + (i % 16 === 0 && i > 0 ? ' barstart' : i % 4 === 0 && i > 0 ? ' beatstart' : '');
         bindCell(b, ti, i);
         lane.append(b); rc.push(b);
       }

@@ -52,7 +52,7 @@ export function mountPanel(root, {store, engine, state}){
     root.append(el('div', {class: 'phead'},
       el('div', {class: 'pheadrow'},
         el('div', {class: 'ptitle'}, t.name || TYPE[t.type] || 'Track'),
-        el('button', {class: 'tb', title: 'Give this track a new name', onclick: () => renameTrack(store, t.id)}, 'Rename')),
+        el('button', {class: 'tb text', title: 'Give this track a new name', onclick: () => renameTrack(store, t.id)}, 'Rename')),
       el('div', {class: 'muted small'}, t.sound ? `${TYPE[t.type]} · ${t.sound}` : (TYPE[t.type] || ''))));
 
     if (t.type === 'drum' || t.type === 'synth'){
@@ -70,7 +70,7 @@ export function mountPanel(root, {store, engine, state}){
     step(s, t, ti);
     const last = s.tracks.length < 2;
     root.append(el('div', {class: 'pdel'},
-      el('button', {class: 'tb quiet', disabled: last,
+      el('button', {class: 'tb text', disabled: last,
         title: last ? 'A song needs at least one track, so the last one stays' : 'Remove this track and its steps (you will be asked first)',
         onclick: () => deleteTrack(store, state, t.id)}, 'Delete track')));
   }

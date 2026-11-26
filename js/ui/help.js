@@ -16,7 +16,7 @@ export function openHelp(){
       el('p', {class: 'note'}, 'Tap and hold a step (or right-click it) to choose it, then ▲ ▼ move its note up or down the '
         + 'key. Velocity is how hard it plays; in More, Chance is how often it plays at all.'),
       el('div', {class: 'psec'}, 'Scenes and songs'),
-      el('p', {class: 'note'}, 'The letters at the top are scenes — A is where you start. Song › puts scenes in a row with '
+      el('p', {class: 'note'}, 'The letters at the top are scenes — A is where you start. Song puts scenes in a row with '
         + 'repeats, and plays them in order.'),
       el('div', {class: 'psec'}, 'Seeds'),
       el('p', {class: 'note'}, 'File › Seeds link… sends every drum hit and the clock to Seeds over a MIDI port.'),

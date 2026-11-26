@@ -23,43 +23,45 @@ export function mountSong(root, {store, engine, openSteps}){
 
   /* ---- header: back to the steps, Play, Tempo ---- */
   const playBtn = el('button', {class: 'tb play', 'aria-label': 'Play or stop the song', onclick: () => togglePlay()}, '▶ Play');
-  const bpm = el('input', {class: 'num', type: 'number', min: 20, max: 300, step: 1, 'aria-label': 'Tempo'});
+  const bpm = el('input', {type: 'number', min: 20, max: 300, step: 1, 'aria-label': 'Tempo'});
   bpm.addEventListener('change', () => {
     store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); });
     bpm.value = store.get().bpm;   // a typed 999 or a blank shows the tempo that is really playing
   });
-  const undoBtn = el('button', {class: 'tb', title: 'Undo', onclick: () => store.undo()}, 'Undo');
-  const redoBtn = el('button', {class: 'tb', title: 'Redo', onclick: () => store.redo()}, 'Redo');
+  const undoBtn = el('button', {class: 'tb quiet', title: 'Undo', onclick: () => store.undo()}, 'Undo');
+  const redoBtn = el('button', {class: 'tb quiet', title: 'Redo', onclick: () => store.redo()}, 'Redo');
 
+  // the same left side as the Steps screen (js/ui/steps.js): name, Steps | Song, then Play and the tempo
   const header = el('header', {class: 'hdr'},
-    el('button', {class: 'tb', title: 'Back to the steps', onclick: () => openSteps()}, '‹ Steps'),
-    el('span', {class: 'app-name'}, '...Spores · Song'),
-    el('button', {class: 'tb', title: 'How Spores works', 'aria-label': 'Help', onclick: () => openHelp()}, '?'),
-    playBtn,
-    el('label', {class: 'field'}, 'Tempo', bpm),
+    el('span', {class: 'app-name'}, '...Spores'),
+    el('div', {class: 'seg', role: 'group', 'aria-label': 'Screen'},
+      el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Back to the steps', onclick: () => openSteps()}, 'Steps'),
+      el('button', {class: 'tb on', 'aria-pressed': 'true', title: 'Arrange the scenes into a song'}, 'Song')),
+    el('div', {class: 'hgroup'}, playBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
+    el('span', {class: 'hspace'}),
     el('div', {class: 'hgroup'}, undoBtn, redoBtn),
-    el('span', {class: 'hint'}, 'The blocks play in order, then the song starts again.'));
+    el('button', {class: 'tb help', title: 'How Spores works', 'aria-label': 'Help', onclick: () => openHelp()}, '?'));
 
   /* ---- body: the blocks, the position bar, the scene library ---- */
   const blocksEl = el('div', {class: 'sblocks'});
   const posbar = el('div', {class: 'posbar', 'aria-hidden': 'true'});
   const posline = el('p', {class: 'posline'}, 'Not playing.');
-  const addBtn = el('button', {class: 'tb', onclick: addBlock}, '+ Add block');
+  const addBtn = el('button', {class: 'tb', onclick: addBlock}, '+ Add scene');
   const libEl = el('div', {class: 'libgrid'});
 
   const body = el('div', {class: 'songbody'},
     el('section', {class: 'ssection'},
       el('div', {class: 'sline-h'},
         el('span', {class: 'psec'}, 'Song'),
-        el('span', {class: 'hint'}, 'Drag a block to move it · − + change the repeats · Loop repeats one block forever'),
         addBtn),
+      el('p', {class: 'hint'}, 'Scenes play in order, then the song starts again. Drag to reorder; Loop repeats one scene forever.'),
       blocksEl,
       posbar,
       posline),
     el('section', {class: 'ssection'},
       el('div', {class: 'sline-h'},
-        el('span', {class: 'psec'}, 'Scenes'),
-        el('span', {class: 'hint'}, 'Tap a scene to add it to the end of the song · Copy puts a copy in the next empty scene · a name can be changed')),
+        el('span', {class: 'psec'}, 'Scenes')),
+      el('p', {class: 'hint'}, 'Add a scene to the end of the song, copy it, or give it a name.'),
       libEl));
 
   root.append(header, body);
@@ -145,13 +147,14 @@ export function mountSong(root, {store, engine, openSteps}){
         el('span', {class: 'sblk-name'}, sc.name || `Scene ${b.scene}`)),
       miniGrid(s, sc),
       el('div', {class: 'sblk-row'},
-        el('button', {class: 'tb', 'aria-label': 'One repeat fewer', onclick: () => setRepeat(i, rep - 1)}, '−'),
-        el('span', {class: 'sblk-rep num', title: 'How many times this block plays'}, `× ${rep}`),
-        el('button', {class: 'tb', 'aria-label': 'One repeat more', onclick: () => setRepeat(i, rep + 1)}, '+')),
+        el('div', {class: 'seg stepper'},
+          el('button', {class: 'tb', 'aria-label': 'One repeat fewer', onclick: () => setRepeat(i, rep - 1)}, '−'),
+          el('span', {class: 'sblk-rep num', title: 'How many times this scene plays'}, `× ${rep}`),
+          el('button', {class: 'tb', 'aria-label': 'One repeat more', onclick: () => setRepeat(i, rep + 1)}, '+'))),
       el('div', {class: 'sblk-row'},
-        el('button', {class: 'tb' + (b.loop ? ' on' : ''), title: 'Play this block over and over', 'aria-pressed': b.loop ? 'true' : 'false',
+        el('button', {class: 'tb' + (b.loop ? ' on' : ''), title: 'Play this scene over and over', 'aria-pressed': b.loop ? 'true' : 'false',
           onclick: () => store.edit('Loop block', song => { if (song.song[i]) song.song[i].loop = !song.song[i].loop; })}, 'Loop'),
-        el('button', {class: 'tb', title: 'Remove this block from the song', 'aria-label': 'Remove block',
+        el('button', {class: 'tb quiet', title: 'Remove from the song', 'aria-label': 'Remove block',
           onclick: () => removeBlock(i, sc.name || `Scene ${b.scene}`)}, '×')));
 
     // drag a block onto another one to put it there
@@ -226,7 +229,7 @@ export function mountSong(root, {store, engine, openSteps}){
     const step = Math.max(0, pos.rep) * here + clamp(pos.counter, 0, here);
     posbar.append(el('span', {class: 'posnow', style: {left: clamp(step / total * 100, 0, 100) + '%'}}));
     const reps = repeatOf(liveBlock.b);
-    posline.textContent = `Playing block ${pos.block + 1} of ${list.length} · `
+    posline.textContent = `Playing scene ${pos.block + 1} of ${list.length} · `
       + (reps > 1 ? `repeat ${pos.rep + 1} of ${reps}` : 'no repeats')
       + ` · ${liveBlock.b.scene}`;
   }
