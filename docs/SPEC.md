@@ -30,7 +30,11 @@ js/engine/          🔴 Claude only: clock worklet, voices, CV out
   engine.js           page side: AudioContext, compile(song) for the worklet, playhead + MIDI timing
   worklet.js          AudioWorklet: sample-exact step clock, chance, song order, mixing
   voices.js           Blip drum voice + Acid synth (from ...Thunder Plus), the kit and synth presets
-tests/engine-check.mjs  headless timing / pitch / MIDI checks (dev only, see the file)
+  sounds.js           every sound (153), its engine, and the settings it offers (settingsFor)
+  pump.js             COIL / ORBIT / FOLD / BOING played live from pump-synth.wasm (GENERATED: pump-meta.js)
+  render-worker.js    records Modal / Scanned notes off the audio thread (GENERATED: rendered.js)
+tools/gen-sounds.mjs  re-copies the generated engine files from a Thunder Plus checkout
+tests/*.mjs           headless engine and sound checks (dev only, see each file)
 ```
 
 ## Data (one song)
@@ -46,6 +50,7 @@ song = {
       midi: { port: '', ch: 1 },     // midi only
       cv: { pitch: 3, gate: 4, cal: null },     // cv only: output channels, calibration table
       seedsNote: 36,                 // note sent to Seeds on every hit (see Linking to Seeds)
+      params: {},                    // drum / synth: the sound's settings she has changed (settingsFor in sounds.js)
       oct: 3,                        // synth / midi / cv: root octave (2 = C2 = MIDI 36)
       len: 0,                        // More: per-track length in steps (0 = the scene's)
       vol: 0.8, mute: false, solo: false }   // midi also has midi.clock: send clock + Start / Stop to its port
@@ -82,7 +87,9 @@ outlined in the selection colour. Right panel: the selected track's settings (so
 and synth; port, channel, clock for MIDI; pitch / gate outputs and **Tune CV…** for CV), volume, and the selected
 step's Note / Velocity / Chance. Bottom: + Add track (n of 16), Bars 1–4 (+), note colour key, melody lane.
 - Tap a step: on / off. Hold (or right-click): select it and show its Note / Velocity / Chance.
-- More shows: swing, per-step chance on the grid, per-track length. Nothing else for now.
+- More shows: swing, per-step chance on the grid, per-track length, and every setting of the track's sound.
+- Sound settings: Simple shows the sound's 5 main settings as big sliders (Coil: Tension, Drip, Decay, Tank, Tone);
+  More shows them all. Moving one is heard straight away (Modal / Scanned a moment later, as they re-record).
 
 **Song.** A row of blocks (scene letter, name, mini grid, × repeats, loop button), drag to reorder, + Add block, a song
 position bar. Below: the scene library A–H; tap to add to the end, Copy scene → empty slot. No per-track arrangement.

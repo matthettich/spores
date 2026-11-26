@@ -2,6 +2,22 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — experimental engines (Claude)
+- Owner asked for more experimental melodic engines (she's an artist and will want to experiment). Added, all in
+  `js/engine/` (🔴): **Coil** (tuned springs), **Orbit** (chaos oscillators), **Fold** (west coast) and **Boing**
+  (spring drums: 8 drums × 14 kits) played live from the pump plugins' own code (`pump-synth.wasm`); **Modal**
+  (struck / bowed objects) and **Scanned** (masses on springs) recorded per note in a Worker. 153 sounds in all.
+- For the panel (phase 2 / 4, ✅): `settingsFor(track.sound)` gives `main` (5 big ones, Simple) and `all` (More).
+  A change is `track.params[s] = value` through `store.edit`; picking a new sound clears `track.params`. Group the
+  sound picker by `SOUNDS[name].engine` / `ENGINES[engine].label`. `ch` on a setting = name per whole value (a menu).
+- Generated files: `rendered.js`, `pump-meta.js`, `pump-synth.wasm` come from Thunder Plus via
+  `node tools/gen-sounds.mjs /path/to/thunder-plus`. Don't edit them by hand.
+- Tested (`tests/sounds-check.mjs`): every engine plays through the worklet with no NaNs, on the step (Coil's spring
+  speaks ~7 ms after it, the sound itself), loudness within ±3 dB of the Blip kit; the wasm reaches the worklet in
+  real time; a Modal note not yet recorded plays ~120 ms after the tap; phase 1 checks still pass.
+- Known: Modal / Scanned notes have a fixed length (their Note length setting, default 0.5 s), and a setting change
+  is heard once its notes are re-recorded (~60 ms a note). Not tested on real speakers.
+
 ## 2026-11-26 — phase 1 done: skeleton + engine (Claude)
 - Built: every file in the spec's list; `js/scale.js`; `js/engine/` (AudioWorklet step clock, Blip drum voice and
   Acid synth copied from ...Thunder Plus, a 13-sound kit and 5 synth presets); `js/midi.js` (notes, clock,

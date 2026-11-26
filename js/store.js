@@ -6,8 +6,10 @@
  *   track.oct        root octave of a Synth / MIDI / CV track (MIDI octave: 2 = C2 = note 36). Default 3.
  *   track.len        per-track length in steps (More mode). 0 / missing = the scene's length.
  *   track.midi.clock send MIDI clock + Start / Stop to this MIDI track's port.
+ *   track.params     {setting: value} over the sound's own values (drum / synth). Settings and their ranges:
+ *                    settingsFor(track.sound) in js/engine/sounds.js. Clear it when the sound changes.
  */
-import {DRUM_NAMES, SYNTH_NAMES} from './engine/voices.js';
+import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
 
 export const VERSION = 1, MAX_TRACKS = 16, SCENES = 'ABCDEFGH'.split('');
 
@@ -21,7 +23,7 @@ export function newTrack(type = 'drum', sound, name){
   sound = sound || (type === 'drum' ? 'Kick' : type === 'synth' ? 'Acid bass' : '');
   return {id, name: name || sound || (type === 'midi' ? 'MIDI' : 'CV'), type, sound,
     midi: {port: '', ch: 1, clock: false}, cv: {pitch: 3, gate: 4, cal: null},
-    seedsNote: GM[sound] ?? 36, oct: type === 'drum' ? 3 : 2, vol: 0.8, mute: false, solo: false};
+    params: {}, seedsNote: GM[sound] ?? 36, oct: type === 'drum' ? 3 : 2, vol: 0.8, mute: false, solo: false};
 }
 
 export function newSong(){
@@ -73,4 +75,5 @@ export function createStore(initial){
   };
 }
 
-export const SOUNDS = {drum: DRUM_NAMES, synth: SYNTH_NAMES};
+// Sound names for each track type, in Prev / Next order (the panel's picker can group them by engine: SOUNDS in sounds.js)
+export const SOUND_LISTS = {drum: DRUM_NAMES, synth: SYNTH_NAMES};
