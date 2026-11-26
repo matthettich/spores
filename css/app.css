@@ -68,13 +68,17 @@ p { margin: 0; }
 .lane.midi { --rowc: var(--video); }
 .lane.cv { --rowc: var(--mod); }
 .cell { width: var(--touch); min-width: var(--touch); height: var(--touch); padding: 0; border: 1px solid var(--edge);
-  border-radius: var(--radius); background: var(--panel); font-size: 12px; font-weight: 600; cursor: pointer; }
+  border-radius: var(--radius); background: var(--panel); font-size: 12px; font-weight: 600; cursor: pointer; position: relative; }
 .cell:hover { background: var(--panel-2); }
 .cell.beatstart { margin-left: 8px; }
 .cell.barstart { margin-left: 18px; }
 .cell.on, .cell.on:hover { background: linear-gradient(var(--top, var(--rowc)), var(--bottom, var(--rowc))); color: var(--txt, var(--panel)); }
 .cell.sel { outline: 2px solid var(--selc); outline-offset: 2px; }
 .cell.now { outline: 3px solid var(--selc); outline-offset: 2px; }
+/* a white corner: this step's velocity or chance was changed; a dashed bottom: it may skip (More) */
+.cell.mark::after { content: ''; position: absolute; top: 0; right: 0;
+  border-top: 7px solid var(--panel); border-left: 7px solid transparent; }
+.cell.chance { border-bottom: 3px dashed var(--ink); }
 
 /* melody lane: under the grid, for the selected Synth / MIDI / CV track */
 .melody { position: sticky; bottom: 0; z-index: 2; background: var(--bench); border-top: 1px solid var(--edge); }
@@ -108,6 +112,8 @@ p { margin: 0; }
 .plabel { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pval { text-align: right; font-variant-numeric: tabular-nums; }
 .prow input[type=range] { width: 100%; height: var(--touch); padding: 0; border: 0; background: transparent; accent-color: var(--audio); }
+.nudge { display: flex; gap: 2px; }
+.nudge .tb { min-width: var(--touch); padding: 0 6px; }
 .note { font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .sline { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-height: 32px; font-size: 13px; }
 

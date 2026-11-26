@@ -16,7 +16,7 @@ import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
 
 export const VERSION = 1, MAX_TRACKS = 16, SCENES = 'ABCDEFGH'.split(''), STORAGE_KEY = 'spores.song';
 const HISTORY = 80, MERGE_MS = 600;
-const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing']);
+const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing', 'Step velocity', 'Step chance']);
 const TYPES = ['drum', 'synth', 'midi', 'cv'];
 
 // GM drum notes, so a drum track's seedsNote is something sensible in Seeds and in any drum machine

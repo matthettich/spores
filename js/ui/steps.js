@@ -239,8 +239,13 @@ export function mountSteps(root, {store, engine}){
       if (!rc) return;
       rc.forEach((b, i) => {
         const st = lane[i], on = !!(st && st.on);
+        const vel = st ? (st.vel ?? 100) : 100, chance = st ? (st.chance ?? 100) : 100;
         b.classList.toggle('on', on);
         b.classList.toggle('sel', state.track === ti && state.step === i);
+        // a white corner means velocity or chance was changed; More also marks steps that may skip
+        b.classList.toggle('mark', on && (vel !== 100 || chance !== 100));
+        b.classList.toggle('chance', on && s.mode === 'more' && chance < 100);
+        b.title = on ? `Velocity ${vel} · chance ${chance}%` : '';
         if (on && t.type !== 'drum'){
           const c = noteColor(st.deg || 0, s.scale);
           b.style.setProperty('--top', c.top);
@@ -378,6 +383,8 @@ export function mountSteps(root, {store, engine}){
   const light = {
     'Step on / off': () => { paintGrid(); drawMelody(); panel.refresh(); },
     'Step note': () => { paintGrid(); drawMelody(); panel.refresh(); },
+    'Step velocity': () => { paintGrid(); panel.refresh(); },
+    'Step chance': () => { paintGrid(); panel.refresh(); },
     'Tempo': () => { if (document.activeElement !== bpm) bpm.value = store.get().bpm; },
     'Swing': () => {
       const v = Math.round((store.get().swing || 0) * 100);

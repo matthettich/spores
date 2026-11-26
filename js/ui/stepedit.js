@@ -19,3 +19,11 @@ function editStep(store, where, label, fn){
 /* Move a note up or down the scale (deg is in scale steps, so it stays in key). */
 export const nudgeNote = (store, where, by) =>
   editStep(store, where, 'Step note', st => { st.deg = Math.max(-28, Math.min(35, Math.round(st.deg || 0) + by)); });
+
+// How hard the step is played (1…127, the MIDI range).
+export const setVelocity = (store, where, v) =>
+  editStep(store, where, 'Step velocity', st => { st.vel = Math.max(1, Math.min(127, Math.round(v))); });
+
+// How often the step plays at all (0…100 %, only used in More — see compile() in js/engine/engine.js).
+export const setChance = (store, where, v) =>
+  editStep(store, where, 'Step chance', st => { st.chance = Math.max(0, Math.min(100, Math.round(v))); });

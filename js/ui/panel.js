@@ -12,6 +12,7 @@
  */
 import {ENGINES, SOUNDS, settingsFor} from '../engine/sounds.js';
 import {degToMidi, midiName} from '../scale.js';
+import {nudgeNote, setChance, setVelocity, stepAt} from './stepedit.js';
 import {SOUND_LISTS} from '../store.js';
 import {el} from './dom.js';
 
@@ -174,29 +175,67 @@ export function mountPanel(root, {store, engine, state}){
     root.append(el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Length'), sel));
   }
 
-  /* ---- selected step (read-only until phase 4) ---- */
+  /* ---- selected step: Note / Velocity / Chance, all through store.edit (so Undo works) ---- */
   function step(s, t, ti){
     root.append(el('div', {class: 'psec'}, 'Selected step'));
-    const body = el('div');
-    root.append(body);
+    const where = () => ({scene: state.scene, trackId: t.id, index: state.step});
+
+    const stepNum = el('span', {class: 'pval num'}, '—');
+    const hint = el('p', {class: 'note'}, 'Tap and hold a step (or right-click it) to see its note.');
+
+    // Note: ▲ ▼ move it a scale step, so it stays in key. Drums have no pitch, so this row hides.
+    const noteVal = el('span', {class: 'pval num'}, '—');
+    const noteUp = el('button', {class: 'tb', title: 'Up one scale step', 'aria-label': 'Note up',
+      onclick: () => nudgeNote(store, where(), 1)}, '▲');
+    const noteDown = el('button', {class: 'tb', title: 'Down one scale step', 'aria-label': 'Note down',
+      onclick: () => nudgeNote(store, where(), -1)}, '▼');
+    const noteRow = el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Note'),
+      el('span', {class: 'nudge'}, noteUp, noteDown), noteVal);
+    noteRow.hidden = t.type === 'drum';
+
+    const vel = el('input', {type: 'range', min: 1, max: 127, step: 1, 'aria-label': 'Velocity'});
+    const velVal = el('span', {class: 'pval num'}, '—');
+    const velRow = el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Velocity'), vel, velVal);
+    vel.addEventListener('input', () => {
+      velVal.textContent = vel.value;
+      setVelocity(store, where(), +vel.value);
+    });
+
+    // Chance is a More thing (the engine only uses it in More mode)
+    let chance = null, chanceVal = null, chanceRow = null;
+    if (s.mode === 'more'){
+      chance = el('input', {type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Chance'});
+      chanceVal = el('span', {class: 'pval num'}, '—');
+      chanceRow = el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Chance'), chance, chanceVal);
+      chance.addEventListener('input', () => {
+        chanceVal.textContent = chance.value + '%';
+        setChance(store, where(), +chance.value);
+      });
+    }
+
+    root.append(
+      el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Step'), stepNum),
+      hint, noteRow, velRow, chanceRow || null);
 
     const paint = (song, tr) => {
-      body.innerHTML = '';
-      if (state.step == null){
-        body.append(el('p', {class: 'note'}, 'Tap and hold a step (or right-click it) to see its note.'));
-        return;
+      const st = state.step == null ? null : stepAt(song, where());
+      const on = !!(st && st.on);
+      stepNum.textContent = state.step == null ? '—' : String(state.step + 1);
+      hint.hidden = state.step != null && on;
+      hint.textContent = state.step == null ? 'Tap and hold a step (or right-click it) to see its note.' : 'This step is off. Tap it to turn it on.';
+      noteRow.hidden = tr.type === 'drum' || !on;
+      velRow.hidden = !on;
+      if (chanceRow) chanceRow.hidden = !on;
+      if (!on) return;
+      if (tr.type !== 'drum') noteVal.textContent = midiName(degToMidi(st.deg || 0, song.key, song.scale, tr.oct ?? 3));
+      const v = st.vel ?? 100;
+      velVal.textContent = String(v);
+      if (document.activeElement !== vel) vel.value = v;
+      if (chance){
+        const c = st.chance ?? 100;
+        chanceVal.textContent = c + '%';
+        if (document.activeElement !== chance) chance.value = c;
       }
-      const sc = song.scenes[state.scene];
-      const lane = (sc && sc.steps && sc.steps[tr.id]) || [];
-      const st = lane[state.step];
-      body.append(el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Step'),
-        el('span', {class: 'pval num'}, String(state.step + 1))));
-      if (!st || !st.on){ body.append(el('p', {class: 'note'}, 'This step is off.')); return; }
-      const note = tr.type === 'drum' ? 'Drum' : midiName(degToMidi(st.deg || 0, song.key, song.scale, tr.oct ?? 3));
-      body.append(
-        el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Note'), el('span', {class: 'pval num'}, note)),
-        el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Velocity'), el('span', {class: 'pval num'}, String(st.vel ?? 100))),
-        el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Chance'), el('span', {class: 'pval num'}, `${st.chance ?? 100}%`)));
     };
     paint(s, t);
     updaters.push(paint);
