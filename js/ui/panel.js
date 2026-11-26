@@ -56,6 +56,7 @@ export function mountPanel(root, {store, engine, state}){
       root.append(el('p', {class: 'note'}, 'A CV track. The pitch and gate outputs arrive in phase 7.'));
     }
     volume(t, ti);
+    if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
     step(s, t, ti);
   }
 
@@ -123,7 +124,7 @@ export function mountPanel(root, {store, engine, state}){
         const v = Math.round(tr.params[r.s] ?? r.def ?? r.min);
         if (document.activeElement !== sel) sel.value = String(v);
       });
-      return el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, r.l), sel);
+      return el('div', {class: 'prow wide'}, el('span', {class: 'plabel', title: r.l}, r.l), sel);
     }
 
     const log = !!r.log && r.min > 0;
@@ -142,7 +143,7 @@ export function mountPanel(root, {store, engine, state}){
       val.textContent = fmt(r, v);
       if (document.activeElement !== inp) inp.value = log ? toPos(r, v) : v;
     });
-    return el('div', {class: 'prow'}, el('span', {class: 'plabel'}, r.l), inp, val);
+    return el('div', {class: 'prow'}, el('span', {class: 'plabel', title: r.l}, r.l), inp, val);
   }
 
   /* ---- track: volume (and, in More, its length) ---- */
@@ -161,6 +162,16 @@ export function mountPanel(root, {store, engine, state}){
     });
     root.append(el('div', {class: 'psec'}, 'Track'),
       el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Volume'), inp, val));
+  }
+
+  // More only: how many steps this track plays before it starts again (0 = the scene's length)
+  function length(t, ti){
+    const sel = el('select', {'aria-label': 'Track length'});
+    for (const n of [0, 4, 8, 12, 16, 24, 32, 48, 64])
+      sel.append(el('option', {value: String(n)}, n ? `${n} steps` : 'Same as the scene'));
+    sel.value = String(t.len || 0);
+    sel.addEventListener('change', () => store.edit('Track length', s => { s.tracks[ti].len = +sel.value; }));
+    root.append(el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Length'), sel));
   }
 
   /* ---- selected step (read-only until phase 4) ---- */
