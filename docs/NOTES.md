@@ -22,6 +22,39 @@ Agents: add a dated entry when you stop. Newest at the top.
 - **After CV:** phase 8 has been started — touch sizes, help text and sound presets are on `dev` (see the phase 8 entry
   below); skins are not started.
 
+## 2026-11-26 — phase 8 started: touch sizes, help text, sound presets
+- **Touch sizes:** I measured every visible button, select, input, `[role=button]` and check row at 1440×900, 390×844 and
+  360×740 (Steps, More and the Song screen) before changing anything: nothing was under the 44 px minimum and the page
+  never scrolled sideways. So the change is a step up for fingers, not a repair: `@media (pointer: coarse) { :root {
+  --touch: 48px } }` — cells, melody bars, buttons, fields and selects all follow the token, and a mouse keeps 44.
+  Left as is: at 390 px the header still wraps to seven or eight rows (more with Swing), so the grid gets little room on
+  a phone. Desktop Chrome is the target; a phone layout is a separate job, not done here.
+- **Help text:** `js/ui/help.js` — a "?" beside the app name on both screens opens "How Spores works": a beat, a melody,
+  scenes and songs, Seeds, then one line about Undo (Ctrl+Z) and where the song lives. It is behind a button on purpose
+  (SPEC: a first-time user should make a beat without reading anything) and uses the shared dialog shell.
+- **Sound presets:** behind More, a drum or synth track gets a "Sound presets" section: apply a preset (sound + every
+  setting), "Save this sound" (a small dialog asks for a name), Remove (asks first). They live in the song as
+  `song.presets = [{name, sound, params}]`; `newSong()` starts with `[]` and `migrate()` fills it in for older songs, so
+  files keep opening. Only sounds of the track's own kind are offered, and a removal clears the select, because the
+  option values are indices into the list and would otherwise point at the next preset.
+- **Files:** `css/app.css` (one media query), `js/ui/help.js` (new), `js/ui/steps.js` and `js/ui/song.js` (the "?"),
+  `js/ui/panel.js` (presets + save dialog), `js/store.js` (newSong / migrate). `js/engine/` untouched.
+- **Tested in headless Chrome:** at 1440×900 the token is 44 px and a cell 44×44; with a 390×844 touch viewport
+  (`pointer: coarse` and `hover: none` confirmed) the token is 48 and a cell 48, with no control under 48 and no page
+  overflow. The "?" follows the app name on the first header row and opens the dialog (four sections, five lines, "Got
+  it" focused); Escape closes it; the Song screen's copy opens and closes the same page. Presets: on a drum track in
+  More the section shows "No presets yet" with Remove disabled; Save this sound fills in "Kick preset", saves "Punchy
+  kick", and the select lists "Punchy kick · Kick"; applying it after a Pitch change restores the saved value and Undo
+  puts the change back; a new drum track takes the preset's sound and settings; a synth track sees no drum presets; the
+  preset survives a reload; Remove asks, removal empties the select and disables Remove, and Undo restores the preset
+  (with both presets listed again). No console errors.
+- **Not tested / left:** skins (the rest of phase 8 — a skin is a different set of `:root` values, so the tokens are
+  ready but no second skin exists), the phone header wrap, presets have no rename or reorder, a preset keeps the sound
+  and its settings but not the track's octave or volume, no real touch device (emulated viewport only), `tests/*.mjs`
+  not re-run (`js/engine/` untouched).
+- **Odd:** a preset copies the settings at the moment it is saved, so later slider moves on a track never change it, and
+  applying one overwrites the track's current settings without a second question (Undo brings them back).
+
 ## 2026-11-26 — phase 6 done: MIDI tracks and the Seeds link
 - Adding tracks: "+ Add track" adds a drum in one tap (as in phases 2–5); the small ▾ beside it opens a menu with
   Synth track / MIDI track, because those could not be made at all before (`js/ui/steps.js`). A new synth takes the
