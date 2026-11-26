@@ -136,21 +136,28 @@ function loadSaved(){
   } catch (e){ return null; }
 }
 
-export function createStore(initial){
+export function createStore(initial, {onSaveError} = {}){
   let song = migrate(initial || loadSaved() || demoSong());
+  let saveFailed = false;
   const subs = [];
   const past = [], future = [];          // JSON copies: the song before each edit, and what Redo brings back
   let lastLabel = '', lastKey = '', lastAt = 0, saveTimer = 0;
 
   const snap = () => JSON.stringify(song);
-  const notify = label => { for (const f of subs) f(song, label); };
+  // one screen failing must not stop the others (or the engine) hearing about the change
+  const notify = label => { for (const f of subs.slice()) { try { f(song, label); } catch (e) { console.error(e); } } };
   const push = json => { past.push(json); if (past.length > HISTORY) past.shift(); future.length = 0; };
 
   /* The song saves itself to this browser a moment after each change, so a reload keeps it. The short delay keeps a
      slider drag from writing to localStorage sixty times a second; js/main.js calls saveNow() when the tab is hidden. */
   function save(){
     clearTimeout(saveTimer); saveTimer = 0;
-    try { localStorage.setItem(STORAGE_KEY, snap()); } catch (e) { /* private mode or full: carry on in memory */ }
+    try { localStorage.setItem(STORAGE_KEY, snap()); saveFailed = false; }
+    catch (e) {
+      // private mode or full: carry on in memory, but say so once, so she knows to use File › Save a copy…
+      if (!saveFailed && onSaveError) onSaveError(e);
+      saveFailed = true;
+    }
   }
   const persist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 250); };
 
@@ -172,7 +179,8 @@ export function createStore(initial){
        the label AND the key, so dragging a slider is one Undo but touching a second step starts a new one. */
     edit(label, fn, key){
       const before = snap();
-      fn(song);
+      try { fn(song); }
+      catch (e) { song = JSON.parse(before); throw e; }   // a half-made change is put back, never left un-undoable
       const after = snap();
       if (after === before) return;        // nothing actually changed: no history entry
       const now = Date.now();
@@ -220,7 +228,7 @@ export function createStore(initial){
     saveNow: save,
     serialize: () => JSON.stringify(song, null, 2),
 
-    subscribe(f){ subs.push(f); return () => subs.splice(subs.indexOf(f), 1); },
+    subscribe(f){ subs.push(f); return () => { const i = subs.indexOf(f); if (i >= 0) subs.splice(i, 1); }; },
   };
 }
 

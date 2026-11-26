@@ -144,6 +144,7 @@ p { margin: 0; }
 .nudge { display: flex; gap: 2px; }
 .nudge .tb { min-width: var(--touch); padding: 0 6px; }
 .note { font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.startfail { max-width: 36em; margin: 48px auto; padding: 0 16px; font-size: 15px; color: var(--ink); }
 .sline { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-height: 32px; font-size: 13px; }
 
 /* file menu, dialog and toast */

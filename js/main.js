@@ -5,11 +5,28 @@ import * as midi from './midi.js';
 import {mountSteps} from './ui/steps.js';
 import {mountSong} from './ui/song.js';
 import {applyCvSettings} from './ui/cv.js';
+import {toast} from './ui/dialog.js';
 
-const store = createStore();
+const store = createStore(undefined, {
+  onSaveError: () => toast('This browser won’t keep the song (private window or full). Use File › Save a copy… to keep it.'),
+});
 // The AudioContext starts suspended; the first Play (a click) resumes it.
-const engine = await createEngine();
-await applyCvSettings(engine);   // CV output device + volts at full scale, kept on this computer
+let engine;
+try {
+  engine = await createEngine();
+} catch (e) {
+  // without the engine there is nothing to play: say so in plain words instead of a blank page
+  console.error(e);
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  const p = document.createElement('p');
+  p.className = 'note startfail';
+  p.textContent = 'Spores couldn’t start its sound engine in this browser. Try the latest Google Chrome, then reload the page. Your song is safe: it is still saved in this browser.';
+  app.append(p);
+  throw e;
+}
+try { await applyCvSettings(engine); }   // CV output device + volts at full scale, kept on this computer
+catch (e) { console.error(e); }          // a missing CV device must not stop the app opening
 engine.setSong(store.get());
 store.subscribe(s => engine.setSong(s));
 
