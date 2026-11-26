@@ -2,6 +2,36 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — phase 7 done: CV tracks (Claude)
+- **Making one:** "+ Add track ▾ › CV track" makes "CV 1" on outputs 3 / 4 (the next CV track gets 5 / 6, and so on;
+  1–2 carry the music). The track list says "CV · out 3 / 4" (and "· tuned"). No volume row: a CV track's level is its notes.
+- **Engine (`js/engine/`):** the worklet has a second output, 32 channels of CV, connected straight to the output device
+  with every channel open (`destination.channelCount = maxChannelCount`, discrete), no gain or clipping on the way. The
+  stereo mix stays on channels 1–2. On each step a CV track sets its pitch output (held after the note) and raises its
+  gate (5 V for half a step), on the exact sample. `compile(song, {fs})` turns notes into values with `cvValue()` in
+  `js/engine/cv.js`: untuned = 1 V/oct with the track's root C at 0 V; tuned = the value that makes that oscillator
+  play the note's exact pitch (A4 = 440 Hz). `engine.cvHold(ch, value)` holds an output (Tune / Test), `null` lets go.
+- **Per computer, not in the song** (localStorage `spores.cv`): the output device (Chrome's `setSinkId`) and the volts
+  at full scale (default 10, as on an Expert Sleepers ES-8 / ES-9; in More). Per track, in the song: pitch / gate
+  outputs and the tuning `cv.cal = {points: [[value, log2 Hz]…], dc, perVolt, at}`.
+- **Panel (`js/ui/cv.js`, new):** Device, Pitch, Gate, warnings (1–2 are the music; pitch = gate; past the device's
+  outputs), tuned or not, **Tune CV…**, **Test outputs…**, Forget tuning (asks; undoable).
+- **Tune CV…:** oscillator's audio into an interface input; Spores holds −1 … +5 V, measures each pitch (YIN, 3 reads
+  each), fits a table. First it holds +2 V for 2.5 s: if the pitch slides back, the outputs are AC-coupled and it says so
+  (that's the **DC check**). Plain-English errors for no signal, wrong input, cable in the wrong jack.
+- **Test outputs…:** holds 0 / +1 / +5 V on pitch and opens / closes the gate, with the multimeter version of the DC
+  check written out. Lets go when closed.
+- **Tested:** `tests/cv-check.mjs` (Node, model oscillators): detector within ~1 cent on saw / sine / square 41 Hz–1.5 kHz;
+  a VCO 3 % off 1 V/oct tunes to within 1.4 cents across 5 octaves (untuned it was 24–132 cents off); an AC-coupled
+  one is caught (−1458 cents drift); no signal gives the no-pitch message. `tests/cv-render-check.mjs`: C minor
+  root / E♭ / G / C' give 0, 0.025, 0.0583, 0.1 (= 0, 0.25, 0.583, 1 V at 10 V full scale); gate 0.5 (5 V) for half a step;
+  nothing leaks into the music. `tests/cv-ui-check.mjs`: add, outputs, warning, Undo, +5 V held on the right channel and
+  released, Tune dialog lists inputs and fails cleanly on a beep. Engine and MIDI checks still pass
+  (`engine-check.mjs`: its Play click now calls the engine, the button's id changed in phase 2).
+- **Not tested:** real CV. Needs a DC-coupled interface (the Cranborne 500R8's outputs are very likely AC-coupled: the
+  DC check will say) and an oscillator. Owner: try Test outputs › +5 V with a multimeter first.
+- **Later:** slew / glide, trigger (short gate) mode, gate length per step, more than 7 tuning points, CV clock out.
+
 ## 2026-11-26 — handover to Claude: phase 7 (CV tracks) is next
 - **State:** phases 1–6 are done on `dev` (tips: `a94a00a`, phase 6 + its review), tree clean, everything pushed. Phase
   7 is untouched: there is no CV code in `js/engine/`, and `js/ui/panel.js` still shows its placeholder — "A CV track.

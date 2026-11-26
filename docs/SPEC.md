@@ -33,6 +33,8 @@ js/engine/          🔴 Claude only: clock worklet, voices, CV out
   sounds.js           every sound (153), its engine, and the settings it offers (settingsFor)
   pump.js             COIL / ORBIT / FOLD / BOING played live from pump-synth.wasm (GENERATED: pump-meta.js)
   render-worker.js    records Modal / Scanned notes off the audio thread (GENERATED: rendered.js)
+  cv.js               CV: note → voltage, the pitch detector, Tune CV and the DC check
+js/ui/cv.js         a CV track's panel section, Tune CV… and Test outputs…
 tools/gen-sounds.mjs  re-copies the generated engine files from a Thunder Plus checkout
 tests/*.mjs           headless engine and sound checks (dev only, see each file)
 ```
