@@ -27,6 +27,10 @@ js/ui/song.js       Song screen
 js/ui/panel.js      right-hand track / step panel
 js/midi.js          Web MIDI ports, note out, clock out
 js/engine/          🔴 Claude only: clock worklet, voices, CV out
+  engine.js           page side: AudioContext, compile(song) for the worklet, playhead + MIDI timing
+  worklet.js          AudioWorklet: sample-exact step clock, chance, song order, mixing
+  voices.js           Blip drum voice + Acid synth (from ...Thunder Plus), the kit and synth presets
+tests/engine-check.mjs  headless timing / pitch / MIDI checks (dev only, see the file)
 ```
 
 ## Data (one song)
@@ -42,7 +46,9 @@ song = {
       midi: { port: '', ch: 1 },     // midi only
       cv: { pitch: 3, gate: 4, cal: null },     // cv only: output channels, calibration table
       seedsNote: 36,                 // note sent to Seeds on every hit (see Linking to Seeds)
-      vol: 0.8, mute: false, solo: false }
+      oct: 3,                        // synth / midi / cv: root octave (2 = C2 = MIDI 36)
+      len: 0,                        // More: per-track length in steps (0 = the scene's)
+      vol: 0.8, mute: false, solo: false }   // midi also has midi.clock: send clock + Start / Stop to its port
   ],
   scenes: {                          // A–H
     A: { name: 'Intro groove', bars: 1,
@@ -54,7 +60,7 @@ song = {
 }
 ```
 
-`deg` = scale steps above the track's root note (0 = root, 7 = root an octave up). Storing scale steps, not MIDI
+`deg` = scale steps above the track's root note (key + `oct`) (0 = root, 7 = root an octave up). Storing scale steps, not MIDI
 notes, keeps melodies in key when the key changes. `js/scale.js` turns `deg` into a MIDI note. Missing steps = off.
 
 ## Note colours (for melodies)
