@@ -1,0 +1,46 @@
+{
+  "name": "spores",
+  "productName": "Spores",
+  "version": "0.1.0",
+  "description": "...Spores, a simple step sequencer and song arranger",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "copy": "node copy-app.js",
+    "start": "node copy-app.js && electron .",
+    "dist:mac": "node copy-app.js && electron-builder --mac --publish never",
+    "test": "node --test ../tests/updater.test.js"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "6.6.2"
+  },
+  "build": {
+    "appId": "app.spores.sequencer",
+    "productName": "Spores",
+    "files": ["main.js", "preload.js", "updater.js", "app/**/*"],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "build/icon.png",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "...Spores listens to an audio input only while you run Tune CV, to measure your oscillator."
+      }
+    },
+    "dmg": { "artifactName": "Spores-${version}-${arch}.${ext}" },
+    "zip": { "artifactName": "Spores-${version}-${arch}-mac.${ext}" },
+    "publish": [
+      { "provider": "github", "owner": "matthettich", "repo": "spores", "releaseType": "release" }
+    ]
+  }
+}

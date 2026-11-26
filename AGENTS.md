@@ -7,6 +7,7 @@ Read `docs/SPEC.md` first. It says what Spores is, the data format, the screens 
 1. Work on the `dev` branch. `main` is the copy she uses: only merge `dev` into `main` when the owner says so.
 2. Plain web app, **no build step**: `index.html`, CSS in `css/`, ES modules in `js/`. No frameworks, no npm packages in
    the app itself. Keep files small (under ~600 lines); add a new file rather than growing one.
+   The Electron wrapper in `desktop/` is the one place with npm packages; it copies the app in and never changes it.
 3. Look and feel follow `docs/seeds-style-guide.md` (Spores is ...Seeds' sister app): colours from CSS variables on
    `:root`, never hard-coded hexes in components; pink = triggers/gates, teal = audio, purple = modulation; plain-English
    labels; touch targets ≥ 44 px.

@@ -1,0 +1,90 @@
+# Builds the Spores desktop app (Electron) for the Mac on GitHub's machines (copied from ...Seeds' workflow).
+#
+#   Try a build:  Actions → Desktop app → Run workflow (pick the dev branch). The .dmg files are downloads on the run's
+#                 page (only you can see them; they expire after 90 days): arm64 = Apple silicon, x64 = Intel.
+#   Release it:   Run workflow with a version typed in (e.g. 0.1.0), or push a tag:  git tag v0.1.0  then  git push origin v0.1.0
+#                 The .dmg goes on a GitHub Release; installed copies offer it when they next check.
+#                 Her link (always the newest): https://github.com/matthettich/spores/releases/latest
+#   Beta build:   a version with a "-" (0.2.0-beta.1) is a pre-release: never "latest", so installed copies don't offer it.
+#
+# Unsigned (no Apple Developer ID): the first time, right-click Spores in Applications › Open › Open.
+name: Desktop app
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 0.1.0 (leave empty for a test build)'
+        required: false
+        default: ''
+      prerelease:
+        description: 'Pre-release (a beta build: installed copies will not offer it)'
+        type: boolean
+        default: false
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ (github.event_name == 'workflow_dispatch' && inputs.version != '') && format('v{0}', inputs.version) || github.ref_name }}
+  RELEASING: ${{ (github.event_name == 'workflow_dispatch' && inputs.version != '') || startsWith(github.ref, 'refs/tags/v') }}
+  APP_DIR: desktop
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }   # npm install runs third-party scripts; keep the token out of .git/config
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Version from the release
+        if: env.RELEASING == 'true'
+        working-directory: ${{ env.APP_DIR }}
+        shell: bash
+        run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
+      - name: Updater tests
+        run: node --test tests/updater.test.js
+      - name: Install
+        working-directory: ${{ env.APP_DIR }}
+        run: npm install --no-audit --no-fund
+      - name: Build
+        working-directory: ${{ env.APP_DIR }}
+        shell: bash
+        run: |
+          node copy-app.js
+          npx electron-builder --mac --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # no signing certificate: unsigned builds
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spores-mac
+          if-no-files-found: error
+          path: |
+            ${{ env.APP_DIR }}/dist/*.dmg
+            ${{ env.APP_DIR }}/dist/*.zip
+            ${{ env.APP_DIR }}/dist/*.blockmap
+            ${{ env.APP_DIR }}/dist/latest*.yml
+
+  release:
+    if: (github.event_name == 'workflow_dispatch' && inputs.version != '') || startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRE: ${{ ((github.event_name == 'workflow_dispatch' && inputs.prerelease) || contains(github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name, '-')) && '--prerelease' || '' }}
+        run: |
+          ls -la out
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --title "$TAG" $PRE --target "$GITHUB_SHA" --notes "Spores $TAG for the Mac: the .dmg (arm64 for Apple silicon, x64 for Intel). First time: right-click Spores in Applications › Open."
+          fi
