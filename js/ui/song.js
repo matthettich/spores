@@ -261,6 +261,7 @@ export function mountSong(root, {store, engine, openSteps}){
   playBtn.setAttribute('aria-pressed', 'false');
 
   return {
+    togglePlay,
     refresh(){ sync(); },
     /* the engine says a step was heard: {scene, block, rep, counter} — move the bar along the song */
     playhead(m){

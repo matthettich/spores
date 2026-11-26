@@ -53,6 +53,21 @@ function show(name){
 }
 show('steps');
 
+/* Spacebar plays and stops, like every music app: the scene on the Steps screen, the whole song on the Song screen.
+   Not while typing in a text field, and not while a dialog or menu is open (there it presses the focused button).
+   It never also "clicks" whatever button has focus, so a tapped step isn't toggled again. */
+window.addEventListener('keydown', e => {
+  if (e.code !== 'Space' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  const typing = t && (t.tagName === 'TEXTAREA' || t.isContentEditable
+    || (t.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(t.type)));
+  if (typing || document.querySelector('.scrim') || document.querySelector('.menu:not([hidden])')) return;
+  e.preventDefault();
+  (songEl.hidden ? steps : song).togglePlay();
+});
+// a focused button would still "click" on the key's release in some browsers: swallow that too
+window.addEventListener('keyup', e => { if (e.code === 'Space' && !document.querySelector('.scrim') && e.target.tagName === 'BUTTON') e.preventDefault(); });
+
 engine.on('step', m => { steps.playhead(m); song.playhead(m); });
 engine.on('stop', () => { steps.stopped(); song.stopped(); });
 

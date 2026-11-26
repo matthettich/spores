@@ -20,7 +20,7 @@ export function openHelp(){
         + 'repeats, and plays them in order.'),
       el('div', {class: 'psec'}, 'Seeds'),
       el('p', {class: 'note'}, 'File › Seeds link… sends every drum hit and the clock to Seeds over a MIDI port.'),
-      el('p', {class: 'note'}, 'Undo (Ctrl+Z) takes back any change. The song saves itself in this browser; File › Save a '
+      el('p', {class: 'note'}, 'Space plays and stops. Undo (Ctrl+Z) takes back any change. The song saves itself in this browser; File › Save a '
         + 'copy… keeps a file.'),
     ],
     actions: [{label: 'Got it', primary: true}],

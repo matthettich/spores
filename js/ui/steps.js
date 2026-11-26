@@ -488,6 +488,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   let lit = [];
   const clearLit = () => { lit.forEach(b => b.classList.remove('now')); lit = []; };
   return {
+    togglePlay,
     playhead(m){
       clearLit();
       if (m.scene !== state.scene) return;   // a scene switch is waiting for the next bar
