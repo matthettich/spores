@@ -2,6 +2,39 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — phase 2 done: the Steps screen
+- Built (✅, `js/engine/` untouched): `js/ui/steps.js` replaces the phase-1 test grid with the real screen. Header:
+  Play / Stop, Tempo, Key + scale + Lock (`song.lock`, stored only, no other effect yet as the brief said), scene
+  letters A–H with `+`, `Song ›` and `Undo` disabled, Simple / More (`song.mode`). Left: track buttons (type colour bar,
+  name, "type · sound", M for mute) that select. Middle: 16 steps per bar, a gap every 4 and a wider one between bars,
+  bars 1–4 (`scene.bars`), synth steps drawn with `noteColor()` / `degName()`, tap toggles, hold 400 ms or right-click
+  selects, playhead outlined in `--selc`.
+- `js/ui/panel.js`: sound picker grouped by `SOUNDS[name].engine` / `ENGINES[e].label` with Prev / Next (clears
+  `track.params`, then plays `engine.hit(trackIndex, 0)`); the sound's settings as sliders — Simple = `settingsFor().main`,
+  More = `.all`; `log` settings use a log scale, `ch` settings are menus (Boing's Kit and the kit's own menus); a change
+  is `store.edit('Sound setting', s => t.params[key] = v)`. Volume for every track; in More a per-track length
+  (0 = the scene's). MIDI / CV tracks just say what they are (phases 6, 7). Selected step: Note / Velocity / Chance,
+  read-only until phase 4. Only one `store.edit` per change, so phase 3's undo will pick them all up.
+- Bottom: `+ Add track (n of 16)` (adds a drum with the next unused kit sound), Bars 1–4, note colour key.
+- `css/app.css` rewritten for the three-column frame; every colour is still a variable on `:root`, targets are 44 px.
+- Tested in headless Chrome (puppeteer, 1440×900, page served by `python3 -m http.server`): page loads with no console
+  errors before and after everything below; 8 tracks × 16 steps; tap toggles on and off; Play lights one cell per track
+  and Stop clears it; Bars 2 → 32 cells; + Add track → 9 of 16; `+` adds scene B; key / scale / Lock / Simple–More update
+  the song. Panel: six engine groups on a synth track; 5 main settings in Simple, 33 in More; picking "Coil · Default"
+  clears `params`; moving Tension while playing sends the worklet a new song with tension 100; Prev changes the sound and
+  clears params; volume 0.5; hold selects without toggling the step; right-click shows "Step 1 · Note C2 · Velocity 100 ·
+  Chance 100%"; a Boing drum shows Kit (14 names) and the kit's menus; swing 0 → 50% reaches the worklet and is hidden in
+  Simple; per-track length 8 reaches the worklet; a new song + four tracks (4 / 2 / 2 / 4 steps) plays.
+- Not tested: real speakers (headless only), a touch screen, a normal Chrome window. `tests/` was not run because
+  `js/engine/` did not change.
+- Half done / later: step editing (Note / Velocity / Chance) is read-only (phase 4); Song › and Undo disabled (phases 5,
+  3); MIDI port / channel and CV outputs (phases 6, 7); `+ Add track` always adds a drum — choosing a type, or copying a
+  track, would be a friendly phase 8 addition; the app still opens on the phase-1 demo groove (phase 3's New / Open will
+  take over).
+- Odd: the `+` beside the scenes had to do something in phase 2, so it adds the next empty scene — the Song screen owns
+  that properly in phase 5. A per-track length shorter than the scene leaves the extra steps visible but unplayed (the
+  playhead just loops early). No timing or audio glitch seen, so nothing was handed back.
+
 ## 2026-11-26 — experimental engines (Claude)
 - Owner asked for more experimental melodic engines (she's an artist and will want to experiment). Added, all in
   `js/engine/` (🔴): **Coil** (tuned springs), **Orbit** (chaos oscillators), **Fold** (west coast) and **Boing**
