@@ -18,6 +18,7 @@ import * as midi from '../midi.js';
 import {el} from './dom.js';
 
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // slider position 0…1 ↔ value, for settings that span several decades (min must be above 0 for a log scale to work)
 const toPos = (r, v) => r.log && r.min > 0 ? Math.log(v / r.min) / Math.log(r.max / r.min) : (v - r.min) / (r.max - r.min);
@@ -59,6 +60,7 @@ export function mountPanel(root, {store, engine, state}){
     }
     volume(t, ti);
     if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
+    if (s.mode === 'more' && t.type === 'drum') seedsNote(t, ti);
     step(s, t, ti);
   }
 
@@ -86,6 +88,11 @@ export function mountPanel(root, {store, engine, state}){
     clock.checked = !!t.midi.clock;
     clock.addEventListener('change', () => store.edit('MIDI clock', s => { s.tracks[ti].midi.clock = clock.checked; }));
     root.append(el('label', {class: 'checkrow', for: 'midi-clock-' + ti}, clock, el('span', {}, 'Send clock and Start / Stop to this port')));
+    updaters.push((song, tr) => {   // Undo / Redo / a reload of the song keep the controls honest
+      if (document.activeElement !== sel) sel.value = tr.midi.port || '';
+      if (document.activeElement !== ch) ch.value = String(tr.midi.ch || 1);
+      if (document.activeElement !== clock) clock.checked = !!tr.midi.clock;
+    });
     root.append(el('p', {class: 'note'}, 'A MIDI track makes no sound of its own: the steps go out of the port you pick.'));
     if (!midi.ready()) root.append(el('p', {class: 'note'}, 'MIDI is not available in this browser (Chrome has it).'));
   }
@@ -202,6 +209,24 @@ export function mountPanel(root, {store, engine, state}){
     sel.value = String(t.len || 0);
     sel.addEventListener('change', () => store.edit('Track length', s => { s.tracks[ti].len = +sel.value; }));
     root.append(el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Length'), sel));
+  }
+
+  // More: the note this drum sends to Seeds on every hit (js/midi.js, docs/SPEC.md "Linking to Seeds")
+  function seedsNote(t, ti){
+    const inp = el('input', {type: 'number', class: 'num', min: 0, max: 127, step: 1, 'aria-label': 'Seeds note'});
+    inp.value = String(t.seedsNote ?? 36);
+    inp.addEventListener('change', () => {
+      const v = clamp(Math.round(+inp.value) || 0, 0, 127);
+      inp.value = String(v);
+      store.edit('Seeds note', s => { s.tracks[ti].seedsNote = v; });
+    });
+    updaters.push((song, tr) => {
+      const v = tr.seedsNote ?? 36;
+      if (document.activeElement !== inp) inp.value = String(v);
+    });
+    root.append(el('div', {class: 'prow'},
+      el('span', {class: 'plabel', title: 'The note sent to Seeds on every hit'}, 'Seeds note'),
+      inp, el('p', {class: 'note', style: {textAlign: 'right'}}, 'to Seeds')));
   }
 
   /* ---- selected step: Note / Velocity / Chance, all through store.edit (so Undo works) ---- */
