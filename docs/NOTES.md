@@ -3,26 +3,29 @@
 Agents: add a dated entry when you stop. Newest at the top.
 
 ## 2026-11-26 — phase 6 done: MIDI tracks and the Seeds link
-- Adding tracks: "+ Add track" is now a small menu (Drum track / Synth track / MIDI track), because a MIDI track
-  could not be made at all before (`js/ui/steps.js`). A new synth takes the first unused synth sound, a MIDI track is
-  "MIDI 1", "MIDI 2"… and takes no local sound.
+- Adding tracks: "+ Add track" adds a drum in one tap (as in phases 2–5); the small ▾ beside it opens a menu with
+  Synth track / MIDI track, because those could not be made at all before (`js/ui/steps.js`). A new synth takes the
+  first unused synth sound, a MIDI track is "MIDI 1", "MIDI 2"… and takes no local sound.
 - MIDI tracks (`js/ui/panel.js`): port (every Web MIDI output, or "No port yet"; a saved port that is unplugged now
   stays in the list so it comes back), channel 1–16, and "Send clock and Start / Stop to this port". The track list
   says what it is wired to — "MIDI · IAC Driver Bus 1 · ch 3" or "no port yet" — and the panel relists ports when one
   is plugged in or out. MIDI tracks are melodic like synths: note colours, melody lane, Note / Velocity / Chance.
 - Seeds link (`js/ui/link.js`, new; File › Seeds link…): the virtual port Spores and Seeds share, the channel the drum
   hits go out on (16 by default), and "Send clock and Start / Stop", with a line on making the port (IAC Driver / loopMIDI)
-  and a note when the browser has no MIDI. All three are `link.*` in the song, so they save and undo with it.
+  and a note when the browser has no MIDI. All three are `link.*` in the song, so they save and undo with it. The dialog
+  is built on the shared shell (`openDialog` in `js/ui/dialog.js`), not a copy of it.
 - More: a drum track gets "Seeds note" (0–127, its `seedsNote`, default the GM note: Kick 36, Snare 38, Hat 42…), the
   note that track sends to Seeds on every hit. Out-of-range numbers clamp. The MIDI port / channel / clock selects and
   this field now follow Undo and Redo instead of keeping a stale value.
 - Fixed a phase 4 slip found here: in Simple the selected-step section printed a stray "null" under the hint, because
   `root.append(…, chanceRow || null)` writes the text "null" (dom.js's `el()` filters those, plain `append` does not).
-- Files: `js/ui/link.js` (new), `js/ui/steps.js` (add-track menu, MIDI line in the track list), `js/ui/panel.js` (MIDI
-  section, Seeds note, updaters), `js/ui/filebar.js` (menu item), `css/app.css` (.menu.up, .checkrow). `js/midi.js` and
-  `js/engine/` were read, not changed.
-- Tested in headless Chrome with a fake `navigator.requestMIDIAccess` (two ports, every byte recorded): the add menu
-  lists the three kinds; a MIDI track makes "MIDI 1" selected with "no port yet · ch 1"; the port list is No port yet /
+- Files: `js/ui/link.js` (new), `js/ui/dialog.js` (`openDialog`, shared with `ask`), `js/ui/steps.js` (add-track
+  button + menu, MIDI line in the track list), `js/ui/panel.js` (MIDI section, Seeds note, updaters), `js/ui/filebar.js`
+  (menu item), `css/app.css` (.menu.up, .checkrow, .bottom .hgroup.seg). `js/midi.js` and `js/engine/` were read, not
+  changed.
+- Tested in headless Chrome with a fake `navigator.requestMIDIAccess` (two ports, every byte recorded): one tap on
+  + Add track makes a drum and leaves the menu closed, ▾ lists Synth track / MIDI track and Escape closes it; a MIDI
+  track makes "MIDI 1" selected with "no port yet · ch 1"; the port list is No port yet /
   IAC Driver Bus 1 / loopMIDI; port + channel 3 + clock write through and the list line follows; one MIDI step at 120 BPM
   sends note-on `0x92` note 36 velocity 100, note-off `0x82`, Start `0xFA`, 84 clock bytes `0xF8` and Stop `0xFC` to that
   port only; Undo removes the step. Seeds link dialog: File lists Seeds link…, the dialog shows Off / IAC Driver Bus 1 /
@@ -45,6 +48,17 @@ Agents: add a dated entry when you stop. Newest at the top.
 - Odd: the link settings live in the song file, so they travel with a song and can be undone like anything else. A MIDI
   track is silent on this computer by design (its steps only go out of the port). Drum hits always go out on the Seeds
   link channel, never on a drum track's own channel (drum tracks have no MIDI channel of their own).
+- Review pass, same day, before phase 7: the Seeds link dialog had its own copy of the scrim / Escape / focus code, so
+  `js/ui/dialog.js` now exports `openDialog({title, body, content, actions, focus, onClose})` and `ask()` is written on
+  top of it — one place decides how a dialog closes. "+ Add track" went back to one tap for a drum, with the ▾ beside it
+  for the other two kinds (the menu keeps only those two, so there is no second way to add a drum). Also cut: the MIDI
+  checkbox's `for` / id juggling (the input sits inside its label), the Seeds note row's "to Seeds" column, and the Steps
+  screen redrawing the track list when a MIDI port appears (it only changed a name). Re-tested after the change: one tap
+  makes "Boom kick" at 9 of 16 with the menu closed; ▾ shows the two kinds and Escape closes it; the Seeds link dialog
+  focuses the port, writes port and channel, and closes on Done, Escape and a scrim click; New song still asks (Keep this
+  song focused; Escape keeps, Start fresh replaces and Undo restores the 10 tracks); the Seeds note still writes 41; at 16
+  tracks both buttons disable; the pair is joined at gap 0 and its menu opens above it; no console errors.
+
 
 ## 2026-11-26 — phase 5 done: scenes A–H, the Song screen, Undo merging per step
 - Undo merging first (`js/store.js`): `store.edit(label, fn, key)` takes an optional key naming what changed, and two
