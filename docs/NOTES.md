@@ -2,6 +2,49 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — phase 5 done: scenes A–H, the Song screen, Undo merging per step
+- Undo merging first (`js/store.js`): `store.edit(label, fn, key)` takes an optional key naming what changed, and two
+  edits merge into one Undo only when the label AND the key match. Dragging Velocity on one step is still one Undo;
+  moving to another step, or to Chance, starts a new entry. Step edits use `scene:track:step`, sound settings
+  `track:setting`, volume `track:volume`.
+- Two screens (`js/main.js`): Steps and Song are both mounted, one visible at a time (`#app` now holds two `.screen`
+  divs, each with its own header / work area / bottom row). The Steps header's "Song ›" now opens the Song screen and
+  "‹ Steps" comes back. The hidden screen keeps its DOM; the Song screen redraws when shown.
+- Song screen (`js/ui/song.js`, new): blocks with a scene picker A–H, the scene name, a mini grid of the scene's first
+  bar, ×repeats with − +, a Loop flag and × to remove (which asks first, then says so); "+ Add block"; the scene
+  library with an editable name, "N bars · N steps on · in the song N×", "Add to song" (appends at the end) and "Copy"
+  (a deep copy into the next empty scene, off with a reason once A–H are all used); a position bar with one segment per
+  block and a marker that follows the playing block, repeat and step, plus a line like "Playing block 2 of 2 · repeat 1
+  of 2 · B". Play runs the whole song (`engine.play('song')`) and then starts again. Everything goes through store.edit,
+  so Undo / Redo / autosave work on this screen too.
+- Drag to reorder: drag a block onto another one to put it there (HTML5 drag; there is no pointer/touch version yet).
+- Scenes A–H: the Steps header's letters and "+" still make and switch scenes; the Song library names, adds and copies
+  them. Scenes[k].name is what the blocks, the library and the Steps scene buttons show. The demo song now has two
+  scenes — A "Scene A" ×4 then B "Chorus" ×2 (a lead line and a different bass) — so the Song screen opens with
+  something to arrange.
+- Tested in headless Chrome (1440×900): velocity 60 on one step then 50 on another back to back — Undo restores only the
+  second, a second Undo the first; same for chance; a drag on one step is still one Undo; velocity then chance on the same
+  step undo separately. Song › hides the steps and shows the screen; 2 blocks / 2 library cards; + Add block and
+  Add to song append; × 4 → 5 with − + and Undo; Loop sets the flag, the pressed state and the dark style and reaches
+  the worklet as `B/2/true`; the block picker changes a scene and Undo restores it; playing moves the marker through
+  block 1 ("repeat 1 of 4") into block 2 ("repeat 1 of 2 · B") and Stop resets it; removing a block asks "Remove
+  “Scene A” from the song?" with Keep it / Remove it and Escape keeps it; Copy fills C as "Copy of Scene A" with the
+  same steps in a separate object (editing one does not change the other) and says so in a toast; renaming C to Bridge
+  sticks; drag C onto the first block reorders to C, A, B with the names following, Undo and Redo work; with eight
+  scenes every Copy is disabled and titled "All eight scenes are in use"; block order, names and the loop flag survive
+  a reload; ‹ Steps still shows the grid, its scene B and the melody lane; no console errors.
+- Not tested: touch / pointer dragging (only synthetic drag events), real speakers, a touch screen, a normal Chrome
+  window; `tests/*.mjs` not re-run (`js/engine/` untouched).
+- Half done / later: no "play from this block" (Play always starts at the first block); a block cannot be duplicated in
+  place (use Add to song) and there is no reordering with touch yet — that needs a pointer version before the phone
+  work in phase 8; copying only goes into an empty scene — no copying over an existing scene, no deleting a scene, no
+  changing a scene's letter; the mini grid shows only a scene's first bar; a block's picker lists only scenes that
+  exist, so a block cannot point at an empty letter; one song at a time (the Song screen link is phase 7).
+- Odd: the Steps screen still redraws on every song edit even while hidden (the Song screen skips its redraw when
+  hidden), so block changes made here show up there with the right scene names the moment you go back. The position
+  bar's marker is worked out from each block's scene length × repeats, so a long block moves it slowly but a scene
+  edit during playback (bars, repeats) shifts the marker without stopping the audio.
+
 ## 2026-11-26 — phase 4 done: melody lane and step editing
 - Melody lane (`js/ui/steps.js`): under the grid for the selected Synth / MIDI / CV track, one bar per step with the
   height = pitch, in the note colours and with the note name under each bar. It sticks to the bottom of the grid area,
