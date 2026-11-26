@@ -78,7 +78,9 @@ p { margin: 0; }
 /* workspace: track list · step grid · settings panel */
 .workspace { display: grid; grid-template-columns: clamp(164px, 14.6vw, 200px) minmax(0, 1fr) clamp(256px, 22vw, 310px); min-height: 0; }
 .tracks { overflow: auto; border-right: 1px solid var(--edge); padding: 6px; display: flex; flex-direction: column; gap: 6px; }
-.track { display: flex; align-items: center; min-height: 54px; border: 1px solid var(--edge); background: var(--panel); cursor: pointer; }
+/* a track row is exactly one grid lane tall (lane = --touch + 10 px padding; row = --touch + 4 px + the 6 px gap), so
+   every track stays level with its steps however many tracks there are */
+.track { display: flex; align-items: center; height: calc(var(--touch) + 4px); flex: 0 0 auto; border: 1px solid var(--edge); background: var(--panel); cursor: pointer; }
 .track:hover { background: var(--panel-2); }
 .track.sel { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--selc); }
 .tbar { align-self: stretch; width: 8px; flex: 0 0 8px; }
@@ -230,3 +232,10 @@ p { margin: 0; }
 }
 /* laptop windows: the scale list only needs to show its name, so it gives its width back to the header */
 .hdr select[aria-label=Scale] { width: clamp(100px, 9vw, 150px); }
+/* A laptop window (a 13" MacBook Air is 1440–1470 wide): the track list is too thin for "Closed hat" on one line. The name may
+   take two lines instead, and the "Drum · Kick" line goes (the panel shows it for the selected track). Rows keep their
+   height, so they still line up with the grid. */
+@media (max-width: 1520px) {
+  .tsub { display: none; }
+  .tname { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
+}

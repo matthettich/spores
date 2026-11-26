@@ -23,9 +23,9 @@ on:
         default: false
   push:
     tags: ['v*.*.*']
-    # A test build whenever the wrapper itself changes on dev ("Run workflow" only appears once this file is on main).
+    # A test build whenever the app or the wrapper changes on dev ("Run workflow" only appears once this file is on main).
     branches: [dev]
-    paths: ['desktop/**', '.github/workflows/desktop.yml']
+    paths: ['desktop/**', '.github/workflows/desktop.yml', 'index.html', 'css/**', 'js/**']
 
 permissions:
   contents: read
