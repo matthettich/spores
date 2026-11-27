@@ -2,6 +2,16 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-27 — effect presets on every effect card (Claude, branch `fx-presets`, not pushed)
+- **Done:** a preset list (aria-label "<Effect> preset") in each Effects card, under the buttons: Default first, then the
+  effect's presets; it shows "Custom" when the values match none. Picking one is ONE undo step ('Effect preset',
+  `applyFxPreset` in `js/fxedit.js`). The table is the new `js/engine/fxpresets.js` (`FX_PRESETS`, `fxPresets`, `fxPresetName`).
+- **Where they came from:** every preset is ...Thunder Plus' own (FX_FACTORY + FX_FACTORY_MORE in its index.html), 4-6 per
+  effect, all 34 effects, none written new, none skipped. Thunder's choosing a preset resets unnamed settings to default;
+  so does this. Only change: Cross-mod's Tone is Thunder's Carrier minus 1 (Spores has no "Input R").
+- **Tested:** `tests/fx-preset-check.mjs` (new, 27 checks), `tests/fx-ui-check.mjs` (57) and `tests/fx-check.mjs` (35), all pass.
+  The list is 44 px tall and inside the card at 1280x760 and 1440x830. Not tested: a real phone, the sound of each preset.
+
 ## 2026-11-27 — review findings 1 and 2: song files can no longer silence the mix or loop a billion times (Claude, on `dev`)
 - **Done (two commits, `js/store.js` only):** (1) `fixTrack` rebuilds `track.params` for drum / synth tracks from
   `settingsFor(sound).all`: finite numbers only, clamped to each setting's min..max (rounded for `int` ones). Non-numbers,

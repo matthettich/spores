@@ -28,3 +28,6 @@
 .fxbody .prow:not(.wide) .plabel { grid-column: 1; grid-row: 1; align-self: end; }
 .fxbody .prow:not(.wide) .pval { grid-column: 2; grid-row: 1; align-self: end; white-space: nowrap; }
 .fxbody .prow:not(.wide) input[type=range] { grid-column: 1 / -1; grid-row: 2; }
+/* the preset list: a full-width row of its own under the buttons (the card is only ~250 px wide) */
+.fxprerow { margin-top: 4px; }
+.fxpre { width: 100%; min-height: var(--touch); }

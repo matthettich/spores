@@ -9,6 +9,7 @@
  *   setFxOn(store, trackId, fxId, on)   'Effect on' / 'Effect off'
  *   setFxParam(store, trackId, fxId, key, value)   'Effect setting' (a drag is one Undo; clamped to the setting's range)
  *   resetFx(store, trackId, fxId)       every setting back to its default · 'Reset effect'
+ *   applyFxPreset(store, trackId, fxId, values)   a preset's settings (js/engine/fxpresets.js) in ONE step · 'Effect preset'
  * The list for the Add menu, names, groups, settings and value text: FX_LIST, FX_GROUPS, fxInfo, fxText in
  * js/engine/fx.js. The sound follows by itself (main.js sends every edit to the engine).
  */
@@ -55,4 +56,10 @@ export function setFxParam(store, trackId, fxId, key, value){
 }
 export function resetFx(store, trackId, fxId){
   store.edit('Reset effect', s => { const f = find(track(s, trackId), fxId); if (f) f.p = fxDefaults(f.type); }, fxId);
+}
+// every setting at once (missing ones go to their default, the rest clamped), so Undo restores all of them together
+export function applyFxPreset(store, trackId, fxId, values){
+  store.edit('Effect preset', s => {
+    const f = find(track(s, trackId), fxId); if (f) f.p = fxClean(f.type, Object.assign(fxDefaults(f.type), values));
+  }, fxId);
 }

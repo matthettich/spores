@@ -11,7 +11,8 @@
 import {el} from './dom.js';
 import {ask} from './dialog.js';
 import {FX_LIST, FX_GROUPS, MAX_FX, MAX_SONG_FX, fxInfo, fxText} from '../engine/fx.js';
-import {addFx, removeFx, moveFx, setFxOn, setFxParam, resetFx, canAddFx, fxCount} from '../fxedit.js';
+import {fxPresets, fxPresetName} from '../engine/fxpresets.js';
+import {addFx, removeFx, moveFx, setFxOn, setFxParam, resetFx, applyFxPreset, canAddFx, fxCount} from '../fxedit.js';
 
 export function fxSection(root, {store, t, mode}){
   const id = t.id;
@@ -61,6 +62,14 @@ export function fxSection(root, {store, t, mode}){
       btn('›', `Move ${info.name} later`, 'Later in the chain', () => { refocus = {id: f.id, act: 'later'}; moveFx(store, id, f.id, 1); }, 'later', i === n - 1),
       btn('Reset', `Reset ${info.name}`, 'Put every setting back how it started', () => resetFx(store, id, f.id), 'reset'),
       btn('×', `Remove ${info.name}`, 'Remove this effect (you will be asked first)', () => remove(f, info.name), 'remove'));
+    // the preset list: shows the preset the card's values match exactly, else "Custom"
+    const pre = el('select', {class: 'fxpre', 'aria-label': `${info.name} preset`, title: 'Start from a ready-made sound'});
+    const presets = fxPresets(f.type);
+    presets.forEach((x, k) => pre.append(el('option', {value: String(k)}, x.name)));
+    pre.append(el('option', {value: 'custom', disabled: true}, 'Custom'));
+    pre.addEventListener('change', () => { const x = presets[+pre.value]; if (x) applyFxPreset(store, id, f.id, x.p); });
+    const showPre = x => { const nm = fxPresetName(f.type, x.p), k = presets.findIndex(q => q.name === nm); pre.value = k < 0 ? 'custom' : String(k); };
+    showPre(f); paint.push(showPre);
     const body = el('div', {class: 'fxbody'});
     for (const p of rows){
       const cur = f.p[p.key] ?? p.def, val = el('span', {class: 'pval num'});
@@ -82,7 +91,7 @@ export function fxSection(root, {store, t, mode}){
       }
     }
     const node = el('div', {class: 'fxcard' + (f.on ? '' : ' off'), 'data-fx': f.id, 'data-type': f.type},
-      el('div', {class: 'fxhead'}, el('span', {class: 'fxname', title: info.about}, info.name), sw), bar, body);
+      el('div', {class: 'fxhead'}, el('span', {class: 'fxname', title: info.about}, info.name), sw), bar, el('div', {class: 'fxprerow'}, pre), body);
     cards.push({id: f.id, paint});
     return node;
   }
