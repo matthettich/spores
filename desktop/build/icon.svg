@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Spores app icon: a stylized mushroom in the app's colours (pink = steps, teal = sound); spots are step squares -->
+  <rect x="94" y="94" width="836" height="836" rx="180" fill="#ffffff" stroke="#111111" stroke-width="28"/>
+  <!-- stem -->
+  <path d="M432 560 L414 790 Q412 812 434 812 L590 812 Q612 812 610 790 L592 560 Z" fill="#ffffff" stroke="#111111" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M452 640 Q512 660 572 640" fill="none" stroke="#111111" stroke-width="18" stroke-linecap="round"/>
+  <!-- cap -->
+  <path d="M212 548 C212 330 340 236 512 236 C684 236 812 330 812 548 Q812 576 784 576 L240 576 Q212 576 212 548 Z" fill="#c93d78" stroke="#111111" stroke-width="24" stroke-linejoin="round"/>
+  <!-- spots: little steps -->
+  <rect x="300" y="400" width="84" height="84" rx="16" fill="#ffffff" stroke="#111111" stroke-width="16"/>
+  <rect x="470" y="318" width="84" height="84" rx="16" fill="#ffffff" stroke="#111111" stroke-width="16"/>
+  <rect x="640" y="400" width="84" height="84" rx="16" fill="#22958d" stroke="#111111" stroke-width="16"/>
+  <!-- spores drifting -->
+  <rect x="262" y="660" width="40" height="40" rx="9" fill="#22958d"/>
+  <rect x="318" y="740" width="28" height="28" rx="7" fill="#c93d78"/>
+  <rect x="704" y="652" width="34" height="34" rx="8" fill="#c93d78"/>
+  <rect x="680" y="744" width="44" height="44" rx="10" fill="#22958d"/>
+</svg>

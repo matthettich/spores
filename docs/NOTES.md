@@ -905,3 +905,5 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
 - Tested: headless Chrome (meters move while playing, fall to 0 after Stop; ⧉ makes "Copy of Scene A" as C with the same
   steps; position line 3 → 99 % through the demo song then wraps; File menu lists all items on Song); engine, fx, export,
   audio and save checks all pass.
+- App icon is now a stylized mushroom (pink cap with step-square spots, teal/pink spores). Source: desktop/build/icon.svg;
+  icon.png (1024×1024) is rendered from it (rsvg-convert -w 1024 -h 1024 icon.svg -o icon.png) and is what electron-builder uses.
