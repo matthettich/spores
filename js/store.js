@@ -307,8 +307,9 @@ export function createStore(initial, {onSaveError} = {}){
 
     /* fn changes the song in place. label: what the change was (for Undo).
        key: which thing it changed (a track, a setting, a step). Two edits merge into one Undo only when they share
-       the label AND the key, so dragging a slider is one Undo but touching a second step starts a new one. */
-    edit(label, fn, key){
+       the label AND the key, so dragging a slider is one Undo but touching a second step starts a new one.
+       hold: true = merge with the last edit of the same label + key however long ago (a drag that pauses is still one Undo). */
+    edit(label, fn, key, hold){
       const before = snap();
       try { fn(song); }
       catch (e) { song = JSON.parse(before); throw e; }   // a half-made change is put back, never left un-undoable
@@ -316,8 +317,8 @@ export function createStore(initial, {onSaveError} = {}){
       if (after === before) return;        // nothing actually changed: no history entry
       const now = Date.now();
       const mergeKey = key || label;
-      const merge = MERGE_LABELS.has(label) && label === lastLabel && mergeKey === lastKey
-        && now - lastAt < MERGE_MS && past.length > 0;
+      const merge = (hold || MERGE_LABELS.has(label)) && label === lastLabel && mergeKey === lastKey
+        && (hold || now - lastAt < MERGE_MS) && past.length > 0;
       if (!merge) push(before);            // one drag of a slider is one Undo, not sixty
       lastLabel = label; lastKey = mergeKey; lastAt = now;
       persist();

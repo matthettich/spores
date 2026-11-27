@@ -10,18 +10,23 @@ export function stepAt(song, {scene, trackId, index}){
 /* The key says which step changed, so a drag on one step merges into one Undo but two different steps never do. */
 const keyOf = where => `${where.scene}:${where.trackId}:${where.index}`;
 
-function editStep(store, where, label, fn){
+function editStep(store, where, label, fn, key = keyOf(where), hold = false){
   store.edit(label, song => {
     const sc = song.scenes[where.scene];
     const lane = sc && sc.steps && sc.steps[where.trackId];
     const st = lane && lane[where.index];
     if (st && st.on) fn(st, song);
-  }, keyOf(where));
+  }, key, hold);
 }
 
 /* Move a note up or down the scale (deg is in scale steps, so it stays in key). */
 export const nudgeNote = (store, where, by) =>
   editStep(store, where, 'Step note', st => { st.deg = Math.max(-28, Math.min(35, Math.round(st.deg || 0) + by)); });
+
+/* One drag of a note: sets the degree outright. `key` is the same for the whole drag and `hold` makes the store merge
+   every edit with it into one Undo step, however long the drag pauses (js/ui/notedrag.js). */
+export const setNoteDeg = (store, where, deg, key) =>
+  editStep(store, where, 'Step note', st => { st.deg = Math.max(-28, Math.min(35, Math.round(deg))); }, key, true);
 
 // How hard the step is played (1…127, the MIDI range).
 export const setVelocity = (store, where, v) =>
