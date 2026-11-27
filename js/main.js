@@ -9,7 +9,7 @@ import {toast} from './ui/dialog.js';
 import {createSaveFile, bindFileKeys} from './ui/savefile.js';
 import {gcClips} from './audiostore.js';
 import {clipIds} from './store.js';
-import {keepTake} from './takes.js';
+import {keepTake, keepSongTake} from './takes.js';
 
 const store = createStore(undefined, {
   onSaveError: () => toast('This browser won’t keep the song (private window or full). Use File › Save to keep it in a file.'),
@@ -82,7 +82,7 @@ engine.on('stop', () => { steps.stopped(); song.stopped(); });
 // MIDI is optional: without it (or if the browser says no), Spores still plays its own sounds.
 midi.init().then(ok => { if (ok) midi.attach(engine, store.get); });
 
-window.spores = {store, engine, midi, show, files, keepTake};   // for the console and tests
+window.spores = {store, engine, midi, show, files, keepTake, keepSongTake};   // for the console and tests
 
 /* Debug only, until the audio-track screens exist (console): await spores.debugRecord() adds an audio track if there
    is none, opens the default input, records one bar in the current first scene and keeps it (Undo removes it). */
@@ -93,5 +93,16 @@ window.spores.debugRecord = async ({bars = 1, scene = Object.keys(store.get().sc
   if (!engine.input.open){ const r = await engine.openInput({}); if (!r.ok) throw new Error(r.error); }
   const take = await engine.record({scene, track: t.id, bars});
   if (take) keepTake(store, take);
+  return take;
+};
+/* Debug only, until the Song screen's lane exists: await spores.debugRecordSong({fromBlock}) adds a song-length audio
+   track if there is none, records from that block until the song's end (or engine.stopRecording()) and keeps it. */
+window.spores.debugRecordSong = async ({fromBlock = 0} = {}) => {
+  const {newSongTrack, canAddAudio, isSongTrack} = await import('./store.js');
+  let t = store.get().tracks.find(isSongTrack);
+  if (!t){ if (!canAddAudio(store.get())) throw new Error('no room for an audio track'); const nt = newSongTrack(); store.edit('Add track', s => { s.tracks.push(nt); }); t = nt; }
+  if (!engine.input.open){ const r = await engine.openInput({}); if (!r.ok) throw new Error(r.error); }
+  const take = await engine.recordSong({track: t.id, fromBlock});
+  if (take) keepSongTake(store, take);
   return take;
 };

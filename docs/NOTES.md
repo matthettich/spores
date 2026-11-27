@@ -2,6 +2,62 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — audio tracks B3: engine + data for song-length audio done (Claude agent, on `dev`, pushed)
+- **Done:** a second kind of audio track that spans the song: `type: 'audio'` + `span: 'song'` + `track.take`
+  (`newSongTrack()`, `isSongTrack(t)`, `newSongTake({id, sr, bpm, startBar})` in store.js; it counts toward
+  `MAX_AUDIO_TRACKS`; no `v` bump: optional fields, old files open as before; migrate cleans a bad take to null, drops
+  stray `span` / `take` from other tracks and never keeps scene clips on a song track). `track.take = {id, sr, bpm,
+  startBar, gain, fadeIn, fadeOut, trimStart, trimEnd}`; samples in IndexedDB and in `.spores` as `audio/<id>.wav`
+  exactly like loop takes (`clipIds` includes them, so Save / Open / the worklet need nothing new). Engine:
+  `js/engine/songtape.js` (SongTape voice, SongCapture), worklet keeps a song step counter, `js/songmap.js` (pure).
+- **Playback rules:** song mode only (**silent in scene mode**). A song bar counts from 0 at the first block, through
+  every block and every repeat. The take's first sample plays on the first sample of `startBar`, re-synced on every step
+  (no drift, any tempo; another tempo = varispeed, it keeps its bar count). Silent before its start and after its
+  (trimmed) end. At the song's end the song starts again from bar 0 and so does the take (crossfade 5 ms); the part of a
+  take past the song's end is never heard. **Loop-forever block:** the song bar keeps counting up inside it, so the
+  take plays on through to its own end once, then is silent (blocks after a Loop-forever block are only reached by
+  Play from block). **Trim:** `trimStart` / `trimEnd` hide seconds at either end; the take stays anchored (trimming
+  never moves the audio; moving = `startBar`); fades apply at the trimmed edges. Mute / solo / volume as other tracks;
+  silent while it is being recorded.
+- **API for the UI agent** (Song screen lane; all on `engine` = `window.spores.engine` unless said):
+  - `const take = await engine.recordSong({track: trackId, fromBlock = 0, metronome, onTake})` → `{id, kind: 'song',
+    trackId, data, sr, bpm, startBar, n}` or null. Whatever plays stops; one bar of count-in; the song plays from block
+    `fromBlock` (index into the blocks as songMap lists them); records from that block's first sample (same latency
+    correction / input / Hear myself as loop takes) until **Stop** or `engine.stopRecording()` (both keep the take) or
+    the song's end; the music plays on afterwards. `engine.stopRecording({discard: true})` drops it. Then
+    `keepSongTake(store, take)` (js/takes.js, also `window.spores.keepSongTake`) = one Undo step 'Record song take';
+    `clearSongTake(store, trackId)` removes it. `engine.record()` on a song track is refused ('cancelled').
+  - `engine.on('rec', m)`: `count-in` has `kind: 'song'`, `startTime`, `endTime` (the song's end, context seconds;
+    null if a Loop-forever block comes after `fromBlock`), `block`, `startBar`; then `recording`, `done` / `cancelled`.
+    **`engine.recording` is now false before 'done' / 'cancelled' reach listeners** (loop takes too; the B2 note).
+  - Play from a block: `engine.play('song', null, blockIndex)` (already existed; the song take starts at the right
+    offset, sample-accurate). Step events (`on('step')` / `on('sched')`) now carry `songStep` (song mode; ÷ 16 = song
+    bar) for a lane playhead.
+  - Drawing the lane: `songMap(song)` → `{blocks: [{index, scene, bars, repeat, loop, startBar, endBar}], totalBars,
+    loopAt}`, `barToBlock(song, bar)` → `{index, rep, barInScene}`, `blockToBar(song, index)`, `takeBars({sr, bpm, n})`
+    (js/songmap.js). The take's samples: `peekClip(id)` / `getClip(id)` (audiostore), peaks as for loop takes.
+  - Debug: `await spores.debugRecordSong({fromBlock})` in the console (adds a song track if none, records, keeps).
+- **Tested:** new `tests/audio-song-check.mjs`, all 29 pass. Offline (song A 1 bar · B 2 bars ×2 · A): start bar 3 (the
+  repeat of B): silent before, first sample on the bar line (120: sample 290880 with its exact value; 170: first frame
+  = ceil of the fractional bar line), later bars within 0.01 sample; start bar 1 across A → B: bars land within 0.02
+  sample, stops at the song's end, starts again with the song (120 and 170); Play from block 2 / 3: the take's right
+  sample within 0.02 sample (120, 170); varispeed 120 → 170 within 0.03 sample; trim anchored + gain; silent in scene
+  mode; Loop-forever block plays the take through once. Real time against a 25 ms loop-back: from the start = exactly 3
+  bars, kicks 0.023 ms off; from block 2: startBar 1, exactly 2 bars, 0.023 ms; Stop part-way keeps it (aligned);
+  discard drops it; `engine.recording` false at 'done'. Undo / Redo swap track.take in the song and the worklet, Play
+  from block 2 after Undo plays the older take. Save → Open in a fresh profile: WAV in the file, take back in IndexedDB
+  and the worklet. Migrate rules; 4-track cap. Still pass: audio-check (30), audio-ui-check, engine-check (170 BPM gaps
+  exact, MIDI clock 20.83–20.86 ms: no timing change), sounds-check, cv-render-check, save-check, zip-check.
+- **Not tested:** a real mic / interface; very long takes (capture is chunked, 8 s chunks, joined on the page; stops by
+  itself at 30 minutes); the Steps screen with a song track (it shows as an empty loop lane until the UI agent hides it
+  there); a take recorded at another sample rate (same maths as loop takes).
+- **Decisions (owner may change):** silent in scene mode; Loop-forever = plays through once; recording always starts
+  from Stop with a count-in (no punch-in while the song is already playing); after the song's end the music keeps
+  looping (as loop takes keep playing) but the take has ended; Stop keeps a song take (a loop take's unfinished bar is
+  dropped); `startBar` is a whole bar ≥ 0; trim keeps the audio anchored; no reverse / offset on song takes (not in the plan).
+- **Odd:** none new. **Next:** the Song screen lane (UI agent: hide song tracks from the Steps grid or show them as a
+  plain row, Add track › "Song-length voice", the lane, Record from a block, move / trim / fades in More); export (C).
+
 ## 2026-11-26 — audio tracks B2: the UI for loop takes done (Claude agent, on `dev`, pushed)
 - **Done:** "+ Add track ▾ › Audio track (record your voice)" (disabled with the reason at 4 audio tracks / 16 tracks; names
   "Voice 1…"); row "Audio · 2 bars" / "Audio · no take yet" (kept visible on laptop widths, name on one line), teal.
