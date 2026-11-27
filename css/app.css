@@ -18,6 +18,7 @@
   --sw-minimal-1: #ffffff; --sw-minimal-2: #111111; --sw-minimal-3: #ff3d8b;
   --sw-black-1: #141416; --sw-black-2: #f4f4f6; --sw-black-3: #00e5ff;
   --sw-pastel-1: #d6dbe4; --sw-pastel-2: #f8f9fb; --sw-pastel-3: #22958d;
+  --sw-idmpg-1: #e9e8e3; --sw-idmpg-2: #141414; --sw-idmpg-3: #ff2d8a; --sw-idmpg-4: #1f9e5a;
 }
 /* 44 px is the minimum (AGENTS.md); a finger on glass wants a little more, so everything that is sized by --touch
    (steps, melody bars, buttons, fields) steps up on a touch screen. A mouse keeps the tighter layout. */
@@ -36,6 +37,19 @@
   --track: #dde2ea; --selc: #ff3d8b; --step: #e8ecf2; --step-beat: #dbe1ea; --solo: #d98a1c; --radius: 10px;
   --font: 'IBM Plex Sans Condensed', 'Arial Narrow', system-ui, sans-serif;
 }
+
+/* IDM pink & green: ...Thunder Plus' skin of the same name. Warm paper, near-black ink, square corners, a mono font.
+   Pink (its --mxsoft) = triggers, gates and selection; green (its --mxbus) = audio. Its play orange stays the
+   video / solo accent. Ink on paper is 16:1, muted (its --mx2) 6.5:1, pink and green are fills, never small text. */
+:root[data-skin="idmpg"] {
+  --bench: #e9e8e3; --panel: #f2f1ec; --panel-2: #dddcd5; --edge: #141414; --ink: #141414; --muted: #505050;
+  --track: #bdbcb6; --glass: #050607;
+  --video: #ff4d00; --audio: #1f9e5a; --mod: #7a58c8; --gate: #ff2d8a; --gate-dark: #b3125f; --record: #d8281f;
+  --selc: #ff2d8a; --step: #e4e3dc; --step-beat: #d3d2ca; --solo: #ff4d00; --radius: 0;
+  --meter-ok: #1f9e5a; --meter-warn: #e0ae33; --meter-hot: #d8281f;
+  --font: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+:root[data-skin="idmpg"] .app-name { font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 
 /* skins in the File menu: three swatches, a name and a line, the current one filled */
 .skins { display: flex; flex-direction: column; gap: 8px; }

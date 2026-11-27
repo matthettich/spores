@@ -12,6 +12,7 @@ export const SKINS = [
   {id: '', name: 'Minimal', note: 'White, square corners, black lines.', dots: ['minimal-1', 'minimal-2', 'minimal-3']},
   {id: 'black', name: 'Minimal black', note: 'Black, white lines, cyan selection.', dots: ['black-1', 'black-2', 'black-3']},
   {id: 'pastel', name: 'Pastel light', note: 'Soft greys and blue, rounded corners.', dots: ['pastel-1', 'pastel-2', 'pastel-3']},
+  {id: 'idmpg', name: 'IDM pink & green', note: 'Warm paper, black ink, hot pink and green.', dots: ['idmpg-1', 'idmpg-2', 'idmpg-3', 'idmpg-4']},
 ];
 
 export function currentSkin(){
