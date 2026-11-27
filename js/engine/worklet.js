@@ -48,6 +48,16 @@ function wasmModule(m){
   try { return m.bytes ? new WebAssembly.Module(m.bytes) : null; } catch (e){ return null; }
 }
 
+/* A captured take (frames [loopStart - pad, loopStart + len + pad), the loop starting at loop position rot) laid out as
+   [pad | loop | pad] in loop order: out[k] is loop position k - pad. Each position comes from the capture frame that
+   really sat next to it in time where there is one, otherwise from the same position a loop earlier or later. */
+function loopOrder(cap, len, pad, rot){
+  if (!rot) return cap.slice();
+  const N = len + 2 * pad, out = new Float32Array(N);
+  for (let k = 0; k < N; k++){ let j = k - rot; while (j < 0) j += len; while (j >= N) j -= len; out[k] = cap[j]; }
+  return out;
+}
+
 const LOOKAHEAD = 0.12;      // seconds: how far ahead a step is decided (MIDI needs this lead)
 const START_DELAY = 0.06;    // seconds between pressing Play and the first step
 const PPQ_PER_STEP = 6;      // MIDI clock: 24 per quarter note = 6 per 16th
@@ -298,9 +308,11 @@ class SporesEngine extends AudioWorkletProcessor {
       this.start({mode: 'scene', scene: m.scene, countIn: true});
       recFrame = this.nextFrame; r0 = 0;
     }
-    const st = this.stepLen(), len = Math.round(S * st), start = Math.round(recFrame) + Math.round(m.lat || 0);
-    this.rec = {trackId: m.trackId, scene: m.scene, bars, S, len, rot: Math.round((r0 % S) * len / S), keep: !!m.keep,
-      bpm: this.song.bpm, cap: new Capture(start, len), musicStart: recFrame, n: 0, metro: !!m.metronome, beat: 4 * st, nextBeat: recFrame, said: false};
+    // pad: half a bar captured before and after the loop, so the take's loop window can be moved later (Start offset)
+    // without wrapping its end round to its start. The count-in bar is playing during the pre-roll.
+    const st = this.stepLen(), len = Math.round(S * st), pad = Math.round(8 * st), start = Math.round(recFrame) + Math.round(m.lat || 0);
+    this.rec = {trackId: m.trackId, scene: m.scene, bars, S, len, pad, rot: Math.round((r0 % S) * len / S), keep: !!m.keep,
+      bpm: this.song.bpm, cap: new Capture(start - pad, len + 2 * pad), musicStart: recFrame, n: 0, metro: !!m.metronome, beat: 4 * st, nextBeat: recFrame, said: false};
     this.port.postMessage({t: 'rec', state: 'count-in', countTime: (recFrame - 16 * st) / sampleRate, startTime: recFrame / sampleRate,
       endTime: (recFrame + len) / sampleRate, trackId: m.trackId, scene: m.scene, bars});
   }
@@ -344,12 +356,13 @@ class SporesEngine extends AudioWorkletProcessor {
       return this.recordEnd('done');
     }
     if (!r.cap.feed(input, f0, n)) return;
-    // full: in loop order (sample j of the capture is loop position rot + j), sent off; then the next take or the end
-    const d = r.cap.buf, out = r.rot ? new Float32Array(r.len) : d;
-    if (r.rot) for (let j = 0; j < r.len; j++) out[(r.rot + j) % r.len] = d[j];
-    this.port.postMessage({t: 'take', trackId: r.trackId, scene: r.scene, data: out, sr: sampleRate, bars: r.bars, bpm: r.bpm, n: r.n}, [out.buffer]);
-    // (the next take starts inside this block: it gets this block's remaining frames too)
-    if (r.keep){ r.n++; r.musicStart += r.len; r.said = false; r.cap = new Capture(r.cap.start + r.len, r.len); r.cap.feed(input, f0, n); }
+    // full: [pad | loop | pad] in loop order and sent off; then the next take or the end
+    const out = loopOrder(r.cap.buf, r.len, r.pad, r.rot), prev = r.cap;
+    this.port.postMessage({t: 'take', trackId: r.trackId, scene: r.scene, data: out, sr: sampleRate, bars: r.bars, bpm: r.bpm, n: r.n, pad: r.pad}, [out.buffer]);
+    if (r.keep){   // the next take overlaps this one by both pads: those frames are already here; the rest of this block too
+      r.n++; r.musicStart += r.len; r.said = false;
+      r.cap = new Capture(prev.start + r.len, r.len + 2 * r.pad); r.cap.buf.set(prev.buf.subarray(r.len)); r.cap.feed(input, f0, n);
+    }
     else this.recordEnd('done');
   }
 

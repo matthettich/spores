@@ -24,15 +24,19 @@ export class TapeVoice {
   constructor(sr){ this.sr = sr; this.cur = null; this.old = null; this.g = 0; this.k = 1 - Math.exp(-1 / (SMOOTH_S * sr)); }
 
   /* at output sample `late` samples after the step's exact frame: put the loop at step `runStep`. clip = the compiled
-     clip ({id, bars, gain, offset, fadeIn, fadeOut, reverse}) or null; data = its samples (Float32Array) or null. */
+     clip ({id, bars, gain, offset, pad, fadeIn, fadeOut, reverse}) or null; data = its samples (Float32Array) or null.
+     pad (seconds): extra audio recorded before and after the loop (data = [pad | loop | pad]); the loop plays the window
+     starting at pad + offset, so Start offset (kept within ±pad) moves it with no wrap-around. pad 0 (older takes): the
+     whole take is the loop and the offset wraps round it, as before. */
   sync(clip, data, runStep, stepLen, late, target){
     if (!clip || !data || !data.length){ this.release(); return; }
-    const L = data.length, S = clip.bars * 16, per = L / S, rate = per / stepLen;
+    const sr = clip.sr || this.sr, P = Math.max(0, Math.min(Math.round((clip.pad || 0) * sr), Math.floor((data.length - 2) / 3)));
+    const L = data.length - 2 * P, S = clip.bars * 16, per = L / S, rate = per / stepLen;
     const pos = (runStep % S) * per + late * rate;
     if (!this.cur || this.cur.data !== data){
       if (this.cur) this.release(); else this.g = target;    // from silence: full level at once (the take's fade-in shapes it)
-      const sr = clip.sr || this.sr;
-      this.cur = {id: clip.id, data, L, gain: clip.gain ?? 1, rev: !!clip.reverse, off: (clip.offset || 0) * sr,
+      const off = (clip.offset || 0) * sr;
+      this.cur = {id: clip.id, data, L, P, gain: clip.gain ?? 1, rev: !!clip.reverse, off: P ? Math.max(-P, Math.min(P, off)) : off,
         fi: Math.max(0, (clip.fadeIn || 0) * sr), fo: Math.max(0, (clip.fadeOut || 0) * sr), pos: 0, rate: 1};
     }
     this.cur.pos = pos; this.cur.rate = rate;
@@ -64,6 +68,10 @@ export class TapeVoice {
     let env = 1;
     if (v.fi > 0 && p < v.fi) env = p / v.fi;
     if (v.fo > 0 && L - p < v.fo) env = Math.min(env, (L - p) / v.fo);
+    if (v.P){   // a padded take: the window [P + off, P + off + L) of the data
+      let q = v.rev ? L - 1 - p : p; if (q < 0) q = 0;
+      return readLoop(v.data, v.P + v.off + q) * env * v.gain;
+    }
     let r = p + v.off; r -= L * Math.floor(r / L);
     if (v.rev){ r = L - 1 - r; if (r < 0) r += L; }
     return readLoop(v.data, r) * env * v.gain;

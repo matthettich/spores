@@ -34,7 +34,7 @@ export function createRecorder({ctx, node, master, emit}){
       return true;
     }
     if (m.t === 'take'){
-      const take = {id: newClipId(), trackId: m.trackId, scene: m.scene, data: m.data, sr: m.sr, bars: m.bars, bpm: m.bpm, n: m.n};
+      const take = {id: newClipId(), trackId: m.trackId, scene: m.scene, data: m.data, sr: m.sr, bars: m.bars, bpm: m.bpm, n: m.n, pad: (m.pad || 0) / m.sr};   // pad: seconds of extra audio each side
       emit('take', take);
       if (rec){ rec.last = take; try { rec.onTake && rec.onTake(take); } catch (e){ console.error(e); } }
       return true;

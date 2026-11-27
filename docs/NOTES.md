@@ -918,3 +918,10 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
   An old song's Clap track keeps playing (as the new clap); any old Blip settings on it are dropped by fixTrack (not in the
   clap's rows). Tested: offline render (bursts at 0/10/20/30 ms then the tail, peak 0.60 like the Kick), the worklet in
   Chrome (claps on each beat at 120), panel shows Tone / Tail / Tail level / Hands / Hands spread; sounds, engine and export checks pass.
+- Loop takes now keep half a bar of extra audio either side (clip.pad, seconds; samples = [pad | loop | pad] in loop
+  order, worklet.js loopOrder). Start offset slides the loop window within ±pad with no wrap-around (tape.js); takes
+  without pad (older ones) wrap as before. Drag the waveform in the Steps lane sideways to move it ("Later by 77 ms"
+  while dragging, one Undo step); the panel's Start offset range follows the pad. Keep going: each next take is seeded
+  with the overlapping frames. Tested: tests/audio-check (kicks within 1 ms in the window, pads hold the real neighbouring
+  audio, keep going), a node test of TapeVoice (sample-exact window, ±10 ms = ±480 samples), a fake-mic record + drag +
+  Undo in Chrome, audio-ui / audio-song / export checks.

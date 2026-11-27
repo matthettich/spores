@@ -9,6 +9,8 @@
 .lane.audio .cell.acell:hover { background: color-mix(in srgb, var(--track) 55%, transparent); }
 .lane.audio .cell.acell.now { outline: 0; background: color-mix(in srgb, var(--selc) 20%, transparent); box-shadow: inset 3px 0 0 var(--selc); }
 .lane.audio .wave { position: absolute; left: 0; top: 0; pointer-events: none; }
+.lane.audio:not(.empty) .wave { pointer-events: auto; cursor: ew-resize; touch-action: none; }   /* drag the take earlier / later (audiolane.js) */
+.lane.audio.dragging .lanemsg { color: var(--ink); font-weight: 600; }
 .lanemsg { position: absolute; inset: 5px 8px; display: grid; place-items: center; padding: 0 8px; text-align: center;
   pointer-events: none; color: var(--muted); font-size: 13px; }
 

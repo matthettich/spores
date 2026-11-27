@@ -4,7 +4,8 @@
  *    lines (120 and 170 BPM), varispeed (a 120 BPM take in a 170 BPM song), 2-bar takes, song blocks, mute, fades, reverse
  * 2. recording in real time against a loop-back (the engine's own output → a 25 ms DelayNode → its input): the latency
  *    test measures 25 ms, and recorded kicks land on their steps within 1 ms, from Stop (count-in) and while playing
- *    (the take turned round to the loop's start), and with keep going (two takes)
+ *    (the take turned round to the loop's start), and with keep going (two takes); each take has half a bar of the
+ *    real neighbouring audio either side (pad), and its tail holds the next time round's kicks on time
  * 3. Undo / Redo after a take swap the clip in the song and in the worklet
  * 4. Save → Open (fresh browser profile) brings the WAV bytes and the samples back; an old v1 song file opens
  * 5. a fake input device opens and gives level meter values */
@@ -149,7 +150,11 @@ const recs = await p.evaluate(async () => {
   const e = window.spores.engine, sr = e.ctx.sampleRate, step = sr * 15 / 120;
   const onsets = d => { const o = []; let last = -1e9; for (let i = 0; i < d.length; i++){ if (Math.abs(d[i]) > 0.005){ if (i - last > sr * 0.1) o.push(i); last = i; } } return o; };
   const want = [0, 4, 8, 12, 16].map(k => k * step);
-  const err = d => { const o = onsets(d); return {n: o.length, ms: o.map((x, i) => +((x - want[i]) / sr * 1000).toFixed(3))}; };
+  // takes carry half a bar of extra audio either side (tk.pad seconds): timing is measured in the loop window between
+  const win = tk => { const P = Math.round(tk.pad * tk.sr); return tk.data.subarray(P, tk.data.length - P); };
+  const err = tk => { const o = onsets(win(tk)); return {n: o.length, ms: o.map((x, i) => +((x - want[i]) / sr * 1000).toFixed(3))}; };
+  // after the loop: the next time round's first half bar, so its kicks at steps 0 and 4 (32 and 36 of the take's time)
+  const post = tk => { const P = Math.round(tk.pad * tk.sr), L = tk.data.length - 2 * P; return onsets(tk.data.subarray(P + L)).map(x => +(x / sr * 1000).toFixed(3)); };
   const states = []; e.on('rec', m => states.push(m.state));
   // a: from Stop: one bar of count-in, then the 2-bar take from the scene's start
   const t0 = e.ctx.currentTime;
@@ -163,11 +168,13 @@ const recs = await p.evaluate(async () => {
   const takes = [];
   const c = await e.record({scene: 'A', track: window.__tid, bars: 2, keepGoing: true, onTake: tk => { takes.push(tk); if (takes.length === 2) e.stopRecording(); }});
   e.stop();
-  return {sr, a: err(a.data), aLen: a.data.length, aMeta: {bars: a.bars, bpm: a.bpm, sr: a.sr}, tookA: +tookA.toFixed(2), b: err(b.data),
-    c: takes.map(t => err(t.data)), cLast: c && c.id === takes[1].id, states: [...new Set(states)], silentWhileRec: peekRec};
+  return {sr, a: err(a), aLen: a.data.length, aPad: a.pad, aMeta: {bars: a.bars, bpm: a.bpm, sr: a.sr}, tookA: +tookA.toFixed(2), b: err(b), bPost: post(b),
+    c: takes.map(t => err(t)), cPost: takes.map(post), cLast: c && c.id === takes[1].id, states: [...new Set(states)], silentWhileRec: peekRec};
 });
-ok(recs.aLen === Math.round(4 * recs.sr) && recs.aMeta.sr === recs.sr && recs.aMeta.bars === 2 && recs.aMeta.bpm === 120, 'take a: exactly 2 bars long (' + recs.aLen + ' samples), ' + JSON.stringify(recs.aMeta));
-ok(recs.tookA > 5.9 && recs.tookA < 6.6, 'take a: one bar of count-in, then 2 bars (' + recs.tookA + ' s)');
+ok(recs.aLen === Math.round(6 * recs.sr) && Math.abs(recs.aPad - 1) < 1e-6 && recs.aMeta.sr === recs.sr && recs.aMeta.bars === 2 && recs.aMeta.bpm === 120, 'take a: 2 bars plus half a bar either side (' + recs.aLen + ' samples, pad ' + recs.aPad + ' s), ' + JSON.stringify(recs.aMeta));
+ok(recs.tookA > 6.9 && recs.tookA < 7.6, 'take a: one bar of count-in, 2 bars, then the half-bar tail (' + recs.tookA + ' s)');
+ok(recs.bPost.length === 2 && Math.abs(recs.bPost[0]) <= 1 && Math.abs(recs.bPost[1] - 500) <= 1, 'take b: the half bar after the loop holds the next time round (kicks at 0 and 500 ms: ' + recs.bPost + ')');
+ok(recs.cPost.every(q => q.length === 2 && Math.abs(q[0]) <= 1 && Math.abs(q[1] - 500) <= 1), 'keep going: each take\'s tail holds the following audio: ' + JSON.stringify(recs.cPost));
 ok(recs.a.n === 5 && recs.a.ms.every(x => Math.abs(x) <= 1), 'take a (from Stop): kicks land within 1 ms: ' + recs.a.ms);
 ok(recs.b.n === 5 && recs.b.ms.every(x => Math.abs(x) <= 1), 'take b (started mid-scene, turned round): kicks within 1 ms: ' + recs.b.ms);
 ok(recs.c.length === 2 && recs.c.every(t => t.n === 5 && t.ms.every(x => Math.abs(x) <= 1)) && recs.cLast, 'keep going: two takes in a row, both within 1 ms: ' + JSON.stringify(recs.c));

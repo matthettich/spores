@@ -59,7 +59,7 @@ export function compile(song, opts = {}){
       return out;
     }), clips: song.tracks.map(t => {
       const c = t.type === 'audio' && t.span !== 'song' && sc.clips && sc.clips[t.id];
-      return c && c.id ? {id: c.id, bars: c.bars || 1, sr: c.sr || 48000, gain: c.gain ?? 1, offset: c.offset || 0,
+      return c && c.id ? {id: c.id, bars: c.bars || 1, sr: c.sr || 48000, gain: c.gain ?? 1, offset: c.offset || 0, pad: c.pad || 0,
         fadeIn: c.fadeIn || 0, fadeOut: c.fadeOut || 0, reverse: !!c.reverse} : null;
     })};
   }

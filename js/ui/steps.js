@@ -347,7 +347,8 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
         return;
       }
       if (t.type === 'audio'){   // a waveform lane in place of the steps (js/ui/audiolane.js)
-        const L = audioLanes[ti] = audioLane({t, ti, bars: clamp(sc.bars | 0 || 1, 1, 4), onSelect: selectTrack});
+        const L = audioLanes[ti] = audioLane({t, ti, bars: clamp(sc.bars | 0 || 1, 1, 4), onSelect: selectTrack,
+          onOffset: o => store.edit('Take offset', s2 => { const c = ((s2.scenes[state.scene] || {}).clips || {})[t.id]; if (c) c.offset = o; })});
         gridEl.append(el('div', {class: 'srow'}, L.lane)); cells.push(L.cells);
         return;
       }

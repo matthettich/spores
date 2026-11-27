@@ -49,9 +49,11 @@ export const canAddAudio = song => song.tracks.length < MAX_TRACKS && song.track
 /* A loop take, as stored in scene.clips[trackId] (the samples themselves live in js/audiostore.js under `id`, and in a
    .spores file as audio/<id>.wav). bars: 1 | 2 | 4 | 8, the loop's length at any tempo; bpm and sr: what it was
    recorded at (another song tempo plays it faster or slower: varispeed, pitch moves); gain (1 = as recorded); offset
-   (seconds, + starts later in the take); fadeIn / fadeOut (seconds, at the loop's start and end); reverse. */
-export function newClip({id, bars, bpm, sr}, extra = {}){
-  return Object.assign({id, bars, bpm, sr}, CLIP_DEFAULTS, extra);
+   (seconds, + starts later in the take); fadeIn / fadeOut (seconds, at the loop's start and end); reverse.
+   pad (seconds, takes from 2026-11-27 on): extra audio recorded before and after the loop, so the samples are
+   [pad | loop | pad] and offset (within ±pad) slides the loop window through them; 0 = the samples are the loop. */
+export function newClip({id, bars, bpm, sr, pad = 0}, extra = {}){
+  return Object.assign({id, bars, bpm, sr}, CLIP_DEFAULTS, {pad}, extra);
 }
 /* A song-length take, as stored in track.take of an audio track with span 'song' (samples: audiostore.js under `id`,
    audio/<id>.wav in a .spores file, exactly like loop takes). startBar: the song bar (from 0, counted through the
@@ -86,7 +88,7 @@ const num = (x, d, lo, hi) => typeof x === 'number' && isFinite(x) ? Math.max(lo
 function fixClip(c){
   if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !/^[\w-]{1,64}$/.test(c.id)) return null;
   return {id: c.id, bars: CLIP_BARS.includes(c.bars) ? c.bars : 1, bpm: num(c.bpm, 120, 20, 300), sr: num(c.sr, 48000, 8000, 192000),
-    gain: num(c.gain, 1, 0, 4), offset: num(c.offset, 0, -60, 60), fadeIn: num(c.fadeIn, CLIP_DEFAULTS.fadeIn, 0, 10),
+    gain: num(c.gain, 1, 0, 4), offset: num(c.offset, 0, -60, 60), pad: num(c.pad, 0, 0, 30), fadeIn: num(c.fadeIn, CLIP_DEFAULTS.fadeIn, 0, 10),
     fadeOut: num(c.fadeOut, CLIP_DEFAULTS.fadeOut, 0, 10), reverse: !!c.reverse};
 }
 function fixSongTake(c){

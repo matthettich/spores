@@ -75,17 +75,19 @@ export function audioSection(root, {store, engine, state, rec, t, ti, mode, volu
     const none = el('p', {class: 'note'}, 'No take in this scene yet. Record one to change how it sounds.');
     const edit = (label, fn) => store.edit(label, s => { const c = ((s.scenes[state.scene] || {}).clips || {})[t.id]; if (c) fn(c); });
     // a slider shows its value as it moves and writes one Undo step when let go ('change')
-    const slider = (label, min, max, step, get, set, show, editLabel) => {
+    const slider = (label, min, max, step, get, set, show, editLabel, range) => {
       const inp = el('input', {type: 'range', min, max, step, 'aria-label': label}), val = el('span', {class: 'pval num'});
       inp.addEventListener('input', () => { val.textContent = show(+inp.value); });
       inp.addEventListener('change', () => edit(editLabel, c => set(c, +inp.value)));
       const r = el('div', {class: 'prow'}, el('span', {class: 'plabel', title: label}, label), inp, val);
-      return {r, update(c){ const v = get(c); val.textContent = show(v); if (document.activeElement !== inp) inp.value = v; }};
+      return {r, update(c){ if (range) range(inp, c); const v = get(c); val.textContent = show(v); if (document.activeElement !== inp) inp.value = v; }};
     };
     const db = g => g > 0 ? 20 * Math.log10(g) : -24, ms = v => `${Math.round(v * 1000)} ms`;
     const S = [
       slider('Gain', -24, 12, 0.5, c => Math.round(clamp(db(c.gain), -24, 12) * 2) / 2, (c, v) => { c.gain = v <= -24 ? 0 : Math.pow(10, v / 20); }, v => `${v > 0 ? '+' : ''}${v} dB`, 'Take gain'),
-      slider('Start offset', -250, 250, 1, c => Math.round(c.offset * 1000), (c, v) => { c.offset = v / 1000; }, v => `${v} ms`, 'Take offset'),
+      // + starts later in the take (the sound comes earlier); a take with extra audio either side moves within it
+      slider('Start offset', -250, 250, 1, c => Math.round(c.offset * 1000), (c, v) => { c.offset = v / 1000; }, v => `${v} ms`, 'Take offset',
+        (inp, c) => { const lim = c.pad > 0 ? Math.floor(c.pad * 1000) : 250; inp.min = -lim; inp.max = lim; }),
       slider('Fade in', 0, 1000, 5, c => Math.round(c.fadeIn * 1000), (c, v) => { c.fadeIn = v / 1000; }, v => `${v} ms`, 'Take fade in'),
       slider('Fade out', 0, 1000, 5, c => Math.round(c.fadeOut * 1000), (c, v) => { c.fadeOut = v / 1000; }, v => `${v} ms`, 'Take fade out'),
     ];
