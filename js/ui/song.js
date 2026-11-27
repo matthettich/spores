@@ -94,7 +94,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
     store.edit('Copy scene', song => {
       const src = song.scenes[k];
       song.scenes[free] = {name: `Copy of ${src.name || 'Scene ' + k}`, bars: src.bars || 1,
-        steps: JSON.parse(JSON.stringify(src.steps || {}))};   // a copy, not a second name for the same notes
+        steps: JSON.parse(JSON.stringify(src.steps || {})), clips: JSON.parse(JSON.stringify(src.clips || {}))};   // a copy, not a second name for the same notes
     });
     toast(`Copied scene ${k} into scene ${free}.`);
   }
@@ -124,8 +124,15 @@ export function mountSong(root, {store, engine, files, openSteps}){
   function miniGrid(s, sc){
     const wrap = el('div', {class: 'mini', 'aria-hidden': 'true'});
     const len = Math.min(STEPS_PER_BAR, sceneLen(sc));   // the first bar is enough to recognise a scene
-    for (const t of s.tracks.slice(0, 8)){
+    // eight rows at most; audio tracks always get theirs (they come last), the others share what is left
+    const audio = s.tracks.filter(t => t.type === 'audio');
+    for (const t of [...s.tracks.filter(t => t.type !== 'audio').slice(0, 8 - audio.length), ...audio]){
       const row = el('div', {class: 'miniro'});
+      if (t.type === 'audio'){   // a teal bar the length of a bar when this scene has a take; a faint one when it has none
+        const has = !!(sc.clips && sc.clips[t.id]);
+        row.append(el('span', {class: 'minibar' + (has ? ' on' : ''), style: {width: (len * 9 - 2) + 'px'}}));
+        wrap.append(row); continue;
+      }
       const lane = (sc.steps && sc.steps[t.id]) || [];
       for (let i = 0; i < len; i++){
         const st = lane[i], on = !!(st && st.on);

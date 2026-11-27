@@ -161,6 +161,7 @@ function fixTrack(t){
   if (typeof t.vol !== 'number' || !isFinite(t.vol)) t.vol = 0.8;
   if (typeof t.oct !== 'number') t.oct = 3;
   if (typeof t.len !== 'number') t.len = 0;
+  if (t.loop !== undefined && !CLIP_BARS.includes(t.loop)) delete t.loop;   // audio track: bars of the next take (1 | 2 | 4 | 8; missing = 2)
   if (t.color !== undefined && !TRACK_COLOURS.includes(t.color)) delete t.color;   // optional; old songs have none
   if (typeof t.seedsNote !== 'number') t.seedsNote = GM[t.sound] ?? 36;
   t.mute = !!t.mute; t.solo = !!t.solo;

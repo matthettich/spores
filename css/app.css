@@ -7,6 +7,7 @@
   --step: #f1f1f3; --step-beat: #e5e5e9; --solo: #d98a1c;
   --video: #e3962a; --audio: #22958d; --mod: #7a58c8; --gate: #c93d78; --gate-dark: #86214c; --record: #cc3a2c;
   --selc: #ff3d8b;
+  --meter-ok: #3aa864; --meter-warn: #e0ae33; --meter-hot: #d8402f;   /* level meters (css/audio.css) */
   --radius: 0; --font: Futura, 'Futura PT', Jost, 'Century Gothic', 'Avenir Next', system-ui, sans-serif;
   --touch: 44px;
   /* track colours a beginner can pick (js/ui/trackcolor.js): pinks, mustard, prickly-pear green… */

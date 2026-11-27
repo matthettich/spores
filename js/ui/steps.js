@@ -8,20 +8,23 @@
 import {STEPS_PER_BAR} from '../engine/engine.js';
 import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js';
 import {renameTrack} from './trackctl.js';
-import {SCENES, MAX_TRACKS, SOUND_LISTS, newTrack} from '../store.js';
+import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, canAddAudio} from '../store.js';
 import {trackColour, openColourPicker} from './trackcolor.js';
 import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
 import {openHelp} from './help.js';
 import {fileTag} from './filetag.js';
 import {nudgeNote} from './stepedit.js';
+import {audioLane} from './audiolane.js';
+import {createRecStatus} from './recstatus.js';
 import {el} from './dom.js';
 
-const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
+const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV', audio: 'Audio'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function mountSteps(root, {store, engine, midi, files, openSong}){
   const state = {scene: 'A', track: 0, step: null};
+  const rec = createRecStatus(engine);   // what recording is doing (count-in, which bar): the grid lane and the panel show it
 
   /* ---- header: Play, Tempo, Key + scale, scenes, Song / Undo, Simple / More ---- */
   const playBtn = el('button', {class: 'tb play', 'aria-label': 'Play or stop', onclick: () => togglePlay()}, '▶ Play');
@@ -121,13 +124,23 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   // the button adds a drum (one tap, the common case); the small ▾ next to it offers the other two kinds
   const addMenu = el('div', {class: 'menu up', role: 'menu', hidden: true});
   const addBtn = el('button', {class: 'tb', title: 'Add a drum track', onclick: () => addTrack('drum')}, '+ Add track');
-  const addMoreBtn = el('button', {class: 'tb', title: 'Add a synth, MIDI or CV track', 'aria-label': 'Add a synth, MIDI or CV track',
+  const addMoreBtn = el('button', {class: 'tb', title: 'Add a synth, MIDI or CV track, or an audio track', 'aria-label': 'Add a synth, MIDI or CV track, or an audio track',
     'aria-haspopup': 'menu', 'aria-expanded': 'false',
     onclick: e => { e.stopPropagation(); addMenu.hidden ? openAdd() : closeAdd(); }}, '▾');
   for (const [type, label] of [['synth', 'Synth track'], ['midi', 'MIDI track'], ['cv', 'CV track']])
     addMenu.append(el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack(type); }}, label));
+  const audioItem = el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack('audio'); }}, 'Audio track (record your voice)');
+  addMenu.append(audioItem);
   const addWrap = el('div', {class: 'menu-wrap'}, el('div', {class: 'seg'}, addBtn, addMoreBtn), addMenu);
+  // the audio item says why it is off: up to MAX_AUDIO_TRACKS of them, within MAX_TRACKS tracks
+  function paintAudioItem(s = store.get()){
+    const n = s.tracks.filter(t => t.type === 'audio').length, ok = canAddAudio(s);
+    audioItem.disabled = !ok;
+    audioItem.title = ok ? 'Add a track you record your voice (or an instrument) onto' : s.tracks.length >= MAX_TRACKS ? `${MAX_TRACKS} tracks is the most` : `${MAX_AUDIO_TRACKS} audio tracks is the most`;
+    audioItem.replaceChildren('Audio track (record your voice)', ok ? '' : el('span', {class: 'kbd'}, s.tracks.length >= MAX_TRACKS ? `${MAX_TRACKS} tracks is the most` : `${n} of ${MAX_AUDIO_TRACKS} used`));
+  }
   function openAdd(){
+    paintAudioItem();
     addMenu.hidden = false;
     addMoreBtn.setAttribute('aria-expanded', 'true');
     document.addEventListener('pointerdown', outsideAdd, true);
@@ -153,7 +166,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
 
   root.append(header, workspace, bottom);
   mountFileMenu(fileWrap, {store, files});
-  const panel = mountPanel(panelEl, {store, engine, state});
+  const panel = mountPanel(panelEl, {store, engine, state, rec});
 
   /* ---- actions ---- */
   function togglePlay(){
@@ -192,7 +205,10 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     store.edit('Add track', s => {
       const used = new Set(s.tracks.map(t => t.sound));
       const n = s.tracks.filter(t => t.type === type).length + 1;
-      if (type === 'midi' || type === 'cv'){
+      if (type === 'audio'){
+        if (!canAddAudio(s)) return;
+        const t = newTrack('audio'); t.name = 'Voice ' + n; s.tracks.push(t);
+      } else if (type === 'midi' || type === 'cv'){
         const t = newTrack(type); t.name = (type === 'midi' ? 'MIDI ' : 'CV ') + n;
         if (type === 'cv'){   // the next free pair of outputs, from 3 (1–2 carry the music)
           const usedCh = new Set(s.tracks.filter(x => x.type === 'cv').flatMap(x => [x.cv.pitch, x.cv.gate]));
@@ -222,7 +238,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   // ▲ ▼ in the melody lane: move the selected note one scale step, through store.edit
   function moveNote(by){
     const t = store.get().tracks[state.track];
-    if (!t || t.type === 'drum' || state.step == null) return;
+    if (!t || t.type === 'drum' || t.type === 'audio' || state.step == null) return;
     nudgeNote(store, {scene: state.scene, trackId: t.id, index: state.step}, by);
   }
 
@@ -266,6 +282,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       if (t.sound) sub.push(t.sound);
       if (t.type === 'midi') sub.push(t.midi && t.midi.port ? portName(t.midi.port) : 'no port yet', 'ch ' + ((t.midi && t.midi.ch) || 1));
       if (t.type === 'cv') sub.push(`out ${t.cv.pitch} / ${t.cv.gate}` + (t.cv.cal ? ' · tuned' : ''));
+      if (t.type === 'audio'){ const c = ((s.scenes[state.scene] || {}).clips || {})[t.id]; sub.push(c ? `${c.bars} bar${c.bars === 1 ? '' : 's'}` : 'no take yet'); }
       const mute = el('button', {class: 'mute' + (t.mute ? ' on' : ''), title: 'Mute this track',
         'aria-label': 'Mute ' + (t.name || TYPE[t.type]), 'aria-pressed': t.mute ? 'true' : 'false',
         onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, el('span', {class: 'mbox'}, 'M'));
@@ -274,7 +291,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
         onclick: e => { e.stopPropagation(); store.edit('Solo', s2 => { s2.tracks[ti].solo = !s2.tracks[ti].solo; }); }}, el('span', {class: 'mbox'}, 'S'));
       const tname = el('span', {class: 'tname', title: 'Double-click to rename'}, t.name);
       tname.addEventListener('dblclick', e => { e.stopPropagation(); renameTrack(store, t.id); });
-      const row = el('div', {class: 'track' + (ti === state.track ? ' sel' : '') + (anySolo && !t.solo ? ' quiet' : ''), role: 'button', tabindex: '0',
+      const row = el('div', {class: 'track' + (t.type === 'audio' ? ' audiotrack' : '') + (ti === state.track ? ' sel' : '') + (anySolo && !t.solo ? ' quiet' : ''), role: 'button', tabindex: '0',
         'aria-label': `${t.name} (${TYPE[t.type]})`, 'aria-pressed': ti === state.track ? 'true' : 'false'},
         el('button', {type: 'button', class: 'tbar ' + t.type, style: {'--tcol': trackColour(t)},
           title: 'Change colour', 'aria-label': 'Change colour of ' + t.name,
@@ -288,7 +305,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     });
   }
 
-  let gridSig = '', cells = [];
+  let gridSig = '', cells = [], audioLanes = {};
 
   function gridStructure(s){
     const sc = s.scenes[state.scene] || {};
@@ -302,8 +319,13 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     if (sig === gridSig){ paintGrid(s); return; }
     gridSig = sig;
     const len = clamp(sc.bars | 0 || 1, 1, 4) * STEPS_PER_BAR;
-    gridEl.innerHTML = ''; cells = [];
+    gridEl.innerHTML = ''; cells = []; audioLanes = {};
     s.tracks.forEach((t, ti) => {
+      if (t.type === 'audio'){   // a waveform lane in place of the steps (js/ui/audiolane.js)
+        const L = audioLanes[ti] = audioLane({t, ti, bars: clamp(sc.bars | 0 || 1, 1, 4), onSelect: selectTrack});
+        gridEl.append(el('div', {class: 'srow'}, L.lane)); cells.push(L.cells);
+        return;
+      }
       const lane = el('div', {class: 'lane ' + t.type});
       if (t.color) lane.style.setProperty('--rowc', trackColour(t));   // drum steps take the chosen colour
       const rc = [];
@@ -327,6 +349,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       const lane = sc.steps[t.id] || [], rc = cells[ti];
       if (!rc) return;
       if (rc[0]) rc[0].parentElement.classList.toggle('quiet', anySolo && !t.solo);   // silent while others are soloed
+      if (t.type === 'audio'){ if (audioLanes[ti]) audioLanes[ti].paint(s, state.scene, rec); return; }
       rc.forEach((b, i) => {
         const st = lane[i], on = !!(st && st.on);
         const vel = st ? (st.vel ?? 100) : 100, chance = st ? (st.chance ?? 100) : 100;
@@ -357,7 +380,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
 
   function drawMelody(s = store.get()){
     const sc = s.scenes[state.scene], t = s.tracks[state.track];
-    const melodic = !!(sc && t && t.type !== 'drum');
+    const melodic = !!(sc && t && t.type !== 'drum' && t.type !== 'audio');
     melodyEl.hidden = !melodic;
     if (!melodic){
       // forget the old lane, so coming back to a melodic track builds it again
@@ -509,6 +532,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   engine.on('start', () => { playBtn.classList.add('on'); playBtn.textContent = '■ Stop'; playBtn.setAttribute('aria-pressed', 'true'); });
   engine.on('stop', () => { playBtn.classList.remove('on'); playBtn.textContent = '▶ Play'; playBtn.setAttribute('aria-pressed', 'false'); });
 
+  rec.onChange(() => paintGrid());   // "Counting in…" / "Recording…" on the lane
   sync();
   playBtn.setAttribute('aria-pressed', 'false');
 

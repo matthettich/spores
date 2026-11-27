@@ -1,0 +1,38 @@
+/* css/audio.css: audio tracks (loop takes): the waveform lane in the Steps grid, the Record panel, the Song mini bar.
+   Same rules as app.css: colours only from the :root variables. */
+
+/* grid lane: the lane keeps one inert cell per step (so it lines up and the playhead has somewhere to be), drawn
+   transparent over a soft band, with the take's waveform on a canvas on top */
+.lane.audio { position: relative; --rowc: var(--audio); color: var(--rowc); background: var(--step); background-clip: content-box; cursor: pointer; }
+.lane.audio .cell.acell { background: transparent; cursor: pointer; }
+.lane.audio .cell.acell.dk { background: color-mix(in srgb, var(--step-beat) 55%, transparent); }
+.lane.audio .cell.acell:hover { background: color-mix(in srgb, var(--track) 55%, transparent); }
+.lane.audio .cell.acell.now { outline: 0; background: color-mix(in srgb, var(--selc) 20%, transparent); box-shadow: inset 3px 0 0 var(--selc); }
+.lane.audio .wave { position: absolute; left: 0; top: 0; pointer-events: none; }
+.lanemsg { position: absolute; inset: 5px 8px; display: grid; place-items: center; padding: 0 8px; text-align: center;
+  pointer-events: none; color: var(--muted); font-size: 13px; }
+
+/* track row: on a laptop window the second line is hidden for other tracks; an audio track keeps it ("Audio · 2 bars") */
+.track.audiotrack .tsub { display: block; }
+.track.audiotrack .tname { white-space: nowrap; display: block; }
+
+/* panel: the big Record button, the count-in, the level meter */
+.tb.bigrec, .tb.bigrec:hover:not(:disabled) { width: 100%; min-height: 64px; margin: 4px 0; font-size: 20px; font-weight: 600;
+  background: var(--record); border-color: var(--record); color: var(--panel); }
+.tb.bigrec.on, .tb.bigrec.on:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+.counts { display: flex; gap: 6px; }
+.cnt { flex: 1; min-height: var(--touch); display: grid; place-items: center; font-size: 30px; font-weight: 700; color: var(--track); }
+.cnt.now { color: var(--record); }
+.recline { min-height: 20px; font-size: 13px; color: var(--muted); }
+.errnote { color: var(--record); font-size: 13px; padding: 4px 0; }
+.pseg { display: flex; flex-direction: column; gap: 4px; padding: 6px 0 2px; font-size: 13px; }
+.pseg .seg { display: flex; }
+.pseg .seg .tb { flex: 1; }
+.meter { position: relative; height: 14px; overflow: hidden; border: 1px solid var(--glass);
+  background: linear-gradient(to right, var(--meter-ok) 0 70%, var(--meter-warn) 70% 90%, var(--meter-hot) 90%); }
+.mfill { position: absolute; inset: 0; background: var(--glass); transform-origin: right; transform: scaleX(1); }
+.meter.clip { outline: 2px solid var(--record); }
+
+/* Song screen: a take is a teal bar the width of one bar of steps */
+.minibar { display: block; height: 7px; background: var(--track); }
+.minibar.on { background: var(--audio); }

@@ -36,7 +36,7 @@ export async function deleteTrack(store, state, trackId){
   if (ti < 0 || song.tracks.length < 2) return false;
   const name = song.tracks[ti].name || 'this track';
   const ok = await ask({title: `Delete ${name}?`,
-    body: `${name} and its steps go. Undo brings it back.`, yes: `Delete ${name}`, no: 'Keep it'});
+    body: `${name} and its steps and takes go. Undo brings it back.`, yes: `Delete ${name}`, no: 'Keep it'});
   if (!ok) return false;
   const cur = store.get();
   const i = cur.tracks.findIndex(x => x.id === trackId);
@@ -44,7 +44,7 @@ export async function deleteTrack(store, state, trackId){
   state.track = Math.min(i, cur.tracks.length - 2); state.step = null;
   store.edit('Delete track', s => {
     s.tracks.splice(i, 1);
-    for (const sc of Object.values(s.scenes)) if (sc.steps) delete sc.steps[trackId];
+    for (const sc of Object.values(s.scenes)){ if (sc.steps) delete sc.steps[trackId]; if (sc.clips) delete sc.clips[trackId]; }
   });
   return true;
 }
