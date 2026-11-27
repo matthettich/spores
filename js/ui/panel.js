@@ -15,6 +15,7 @@ import {ENGINES, SOUNDS, settingsFor} from '../engine/sounds.js';
 import {degToMidi, midiName} from '../scale.js';
 import {previewStep} from './preview.js';
 import {nudgeNote, setChance, setVelocity, stepAt} from './stepedit.js';
+import {chordRow} from './chordui.js';
 import {SOUND_LISTS, isSongTrack} from '../store.js';
 import {ask, openDialog} from './dialog.js';
 import * as midi from '../midi.js';
@@ -351,6 +352,7 @@ export function mountPanel(root, {store, engine, state, rec, openSong}){
     const noteRow = el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Note'),
       el('span', {class: 'nudge'}, noteUp, noteDown), noteVal);
     noteRow.hidden = t.type === 'drum';
+    const chord = t.type === 'drum' ? null : chordRow({store, engine, where, t});   // js/ui/chordui.js
 
     const vel = el('input', {type: 'range', min: 1, max: 127, step: 1, 'aria-label': 'Velocity'});
     const velVal = el('span', {class: 'pval num'}, '—');
@@ -372,7 +374,7 @@ export function mountPanel(root, {store, engine, state, rec, openSong}){
       });
     }
 
-    root.append(el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Step'), stepNum), hint, noteRow, velRow);
+    root.append(el('div', {class: 'sline'}, el('span', {class: 'plabel'}, 'Step'), stepNum), hint, noteRow, chord && chord.row, velRow);
     if (chanceRow) root.append(chanceRow);
 
     const paint = (song, tr) => {
@@ -384,6 +386,7 @@ export function mountPanel(root, {store, engine, state, rec, openSong}){
       noteRow.hidden = tr.type === 'drum' || !on;
       velRow.hidden = !on;
       if (chanceRow) chanceRow.hidden = !on;
+      if (chord) chord.paint(song, tr);
       if (!on) return;
       if (tr.type !== 'drum') noteVal.textContent = midiName(degToMidi(st.deg || 0, song.key, song.scale, tr.oct ?? 3));
       const v = st.vel ?? 100;

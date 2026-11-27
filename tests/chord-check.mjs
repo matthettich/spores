@@ -110,7 +110,106 @@ const MI = await p.evaluate(async () => { window.spores.engine.stop(); await new
 ok(JSON.stringify(MI.on.slice(0, 3)) === '[48,51,55]' && MI.onT.slice(0, 3).every(t => t === MI.onT[0]), `MIDI: 3 note-ons together (${JSON.stringify(MI.on)})`);
 ok(JSON.stringify(MI.off.slice(0, 3)) === '[48,51,55]' && MI.offT.slice(0, 3).every(t => t === MI.offT[0]) && MI.offT[0] > MI.onT[0], `MIDI: 3 matching note-offs (${JSON.stringify(MI.off)})`);
 
-/* UI */
+/* ---- export: a chord song renders through render.js (the File › Export path), rendered notes included ---- */
+const X = await p.evaluate(async () => {
+  const {renderAudio} = await import('/js/engine/render.js');
+  const s = structuredClone(window.spores.store.get()); s.tracks[7].type = 'synth'; s.tracks[7].sound = 'Modal · Marimba'; s.tracks[7].params = {};
+  s.tracks.forEach((t, i) => { t.mute = i !== 7; }); for (const sc of Object.values(s.scenes)) sc.mute = {}, sc.solo = {};
+  s.tracks.forEach((t, i) => { if (i !== 7) for (const sc of Object.values(s.scenes)) sc.mute[t.id] = true; });
+  const k = Object.keys(s.scenes)[0]; s.song = [{scene: k, repeat: 1}];
+  const one = structuredClone(s); for (const sc of Object.values(one.scenes)) for (const st of sc.steps[s.tracks[7].id] || []) if (st) delete st.chord;
+  const rA = await renderAudio(s, {what: 'scene', scene: k}), rB = await renderAudio(one, {what: 'scene', scene: k});
+  const stat = r => { let bad = 0, e = 0; for (const x of r.mix[0]){ if (!isFinite(x)) bad++; e += x * x; } return {bad, e}; };
+  return {a: stat(rA), b: stat(rB)};
+});
+// each of 3 notes at 1/√3: about the root's energy if all 3 notes were recorded for the export; 1/3 of it if only the root was
+ok(X.a.bad === 0 && X.a.e > X.b.e * 0.7 && X.a.e < X.b.e * 1.5, `Export: a Modal chord renders finite with all its notes (energy ${X.a.e.toFixed(1)} vs the root alone ${X.b.e.toFixed(1)})`);
+
+/* ---- UI ---- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+p.on('dialog', d => d.accept().catch(() => {}));   // (leaving a changed song asks first)
+await p.setViewport({width: 1440, height: 900});
+await p.goto(URL, {waitUntil: 'load'}); await sleep(1200);
+await p.evaluate(() => { const e = window.spores.engine, h = e.hit.bind(e); window.hits = []; e.hit = (ti, deg, vel, chord) => { window.hits.push({ti, deg, chord}); return h(ti, deg, vel, chord); }; });
+const song = () => p.evaluate(() => window.spores.store.get());
+const bass = await p.evaluate(() => window.spores.store.get().tracks.findIndex(t => t.sound === 'Acid bass'));
+const SK = await p.evaluate(() => Object.keys(window.spores.store.get().scenes)[0]);
+const step = async i => { const s = await song(); return (s.scenes[SK].steps[s.tracks[bass].id] || [])[i]; };
+await p.evaluate(() => window.spores.store.edit('x', d => { d.key = 'C'; d.scale = 'minor'; for (const l of Object.values(d.scenes.A.steps)) if (l) l.forEach(x => x && (x.on = false)); }));
+const cell = async i => { const h = await p.evaluateHandle((ti, i) => document.querySelectorAll('.srow')[ti].querySelectorAll('.cell')[i], bass, i);
+  await h.evaluate(e => e.scrollIntoView({block: 'center', inline: 'center'})); const r = await h.boundingBox(); return {x: r.x + r.width / 2, y: r.y + r.height / 2, h}; };
+const I = 2;
+let c = await cell(I); await p.mouse.click(c.x, c.y); await sleep(150);   // on
+await p.mouse.click(c.x, c.y, {button: 'right'}); await sleep(200);        // select
+const undoDepth = () => p.evaluate(() => window.spores.store.canUndo);
+ok(!!(await p.$('select[aria-label="Chord"]')), 'the step panel has a Chord picker');
+const opts = await p.$$eval('select[aria-label="Chord"] option', os => os.map(o => o.value));
+ok(opts[0] === 'none' && opts.includes('triad') && opts.includes('seventh') && opts.includes('sus4'), 'Chord choices: ' + opts.join(', '));
+let n = await p.evaluate(() => window.hits.length);
+await p.select('select[aria-label="Chord"]', 'triad'); await sleep(200);
+let st = await step(I);
+ok(JSON.stringify(st.chord) === '[2,4]' && st.deg === 0, 'Triad sets the chord [2,4] on the root: ' + JSON.stringify(st));
+const h1 = await p.evaluate(() => window.hits[window.hits.length - 1]);
+ok(await p.evaluate(() => window.hits.length) === n + 1 && JSON.stringify(h1.chord) === '[2,4]', 'picking it previews the whole chord ' + JSON.stringify(h1));
+const cellInfo = () => p.evaluate((ti, i) => { const b = document.querySelectorAll('.srow')[ti].querySelectorAll('.cell')[i]; return {chord: b.classList.contains('chord'), text: b.textContent, n1: b.style.getPropertyValue('--n1'), n2: b.style.getPropertyValue('--n2')}; }, bass, I);
+let ci = await cellInfo();
+ok(ci.chord && ci.text === 'Cm' && ci.n1 && ci.n2 && ci.n1 !== ci.n2, 'the grid cell shows the chord (Cm, a stripe of its notes): ' + JSON.stringify(ci));
+const dots = () => p.evaluate(i => document.querySelectorAll('.mlane .mcell')[i].querySelectorAll('.mdot').length, I);
+ok(await dots() === 2, 'the melody lane shows the chord\'s 2 other notes');
+ok((await p.$eval('.chordname', e => e.textContent)).startsWith('Cm · C2 E♭2 G2'), 'the panel names the chord: ' + await p.$eval('.chordname', e => e.textContent));
+await p.evaluate(() => window.spores.store.undo()); await sleep(150);
+st = await step(I);
+ok(st.on && st.chord === undefined && st.deg === 0, 'ONE undo takes the chord off, the note stays: ' + JSON.stringify(st));
+await p.evaluate(() => window.spores.store.redo()); await sleep(150);
+ok(JSON.stringify((await step(I)).chord) === '[2,4]', 'redo puts it back');
+
+// Shift-click in the melody lane at deg 6's height adds B♭; at deg 4's removes G
+const laneY = async d => p.evaluate((i, d) => { const b = document.querySelectorAll('.mlane .mcell')[i]; b.scrollIntoView({block: 'nearest', inline: 'center'});
+  const r = b.getBoundingClientRect(); return {x: r.x + r.width / 2, y: r.bottom - 15 - 8 - (d / 7) * 52}; }, I, d);
+let y = await laneY(6); n = await p.evaluate(() => window.hits.length);
+await p.keyboard.down('Shift'); await p.mouse.click(y.x, y.y); await p.keyboard.up('Shift'); await sleep(150);
+ok(JSON.stringify((await step(I)).chord) === '[2,4,6]', 'Shift-click adds a note at that height: ' + JSON.stringify((await step(I)).chord));
+ok(await p.evaluate(() => window.hits.length) === n + 1 && JSON.stringify((await p.evaluate(() => window.hits[window.hits.length - 1])).chord) === '[2,4,6]', 'and previews the new chord');
+y = await laneY(4); await p.keyboard.down('Shift'); await p.mouse.click(y.x, y.y); await p.keyboard.up('Shift'); await sleep(150);
+ok(JSON.stringify((await step(I)).chord) === '[2,6]', 'Shift-click on a chord note removes it: ' + JSON.stringify((await step(I)).chord));
+ok(await p.$eval('select[aria-label="Chord"]', e => e.value) === 'custom', 'the picker then says "Your own notes"');
+await p.evaluate(() => window.spores.store.undo()); await sleep(150);
+ok(JSON.stringify((await step(I)).chord) === '[2,4,6]', 'one undo per Shift-click');
+
+// arrows and drag move the whole chord
+await p.evaluate(() => document.activeElement && document.activeElement.blur());
+await p.keyboard.press('ArrowUp'); await sleep(150);
+st = await step(I);
+ok(st.deg === 1 && JSON.stringify(st.chord) === '[2,4,6]', '↑ moves the whole chord: ' + JSON.stringify(st));
+c = await cell(I); await p.mouse.move(c.x, c.y); await p.mouse.down();
+for (let k = 1; k <= 3; k++){ await p.mouse.move(c.x, c.y - k * 14 - 2); await sleep(30); }
+await p.mouse.up(); await sleep(150);
+st = await step(I);
+ok(st.deg === 4 && JSON.stringify(st.chord) === '[2,4,6]', 'a drag up 3 moves the whole chord: ' + JSON.stringify(st));
+const hd = await p.evaluate(() => window.hits[window.hits.length - 1]);
+ok(JSON.stringify(hd.chord) === '[2,4,6]', 'and previews the chord as it goes');
+
+// None takes it off (one Undo)
+await p.select('select[aria-label="Chord"]', 'none'); await sleep(150);
+ok((await step(I)).chord === undefined, 'None makes it one note again');
+await p.evaluate(() => window.spores.store.undo()); await sleep(150);
+
+// copy / paste keeps chords (Paste steps path: a clone of the lane), save / load round trip through a .spores zip
+const RT = await p.evaluate(async (bass) => {
+  const {zipWrite, zipRead} = await import('/js/zip.js'); const store = window.spores.store;
+  const bytes = zipWrite([{name: 'song.json', bytes: new TextEncoder().encode(store.serialize())}]);
+  const want = JSON.stringify(store.get().scenes.A.steps[store.get().tracks[bass].id]);
+  store.edit('wipe', d => { d.scenes.A.steps[d.tracks[bass].id] = []; });
+  const f = zipRead(bytes).find(x => x.name === 'song.json'), ok = store.load(JSON.parse(new TextDecoder().decode(f.bytes)));
+  return {ok, same: JSON.stringify(store.get().scenes.A.steps[store.get().tracks[bass].id]) === want, v: store.get().v};
+}, bass);
+ok(RT.ok && RT.same && RT.v === 5, 'save / load (.spores zip) keeps the chord: ' + JSON.stringify(RT));
+
+// CV: the help text says root only
+await p.evaluate(b => window.spores.store.edit('x', d => { d.tracks[b].type = 'cv'; }), bass); await sleep(200);
+c = await cell(I); await p.mouse.click(c.x, c.y, {button: 'right'}); await sleep(200);
+ok(/plays only the lowest note/.test(await p.$eval('.chordsec', e => e.textContent)), 'a CV track\'s chord help says only the lowest note plays');
+await p.screenshot({path: '/tmp/chord-ui.png'});
 ok(!errs.length, 'no page errors ' + JSON.stringify(errs));
 console.log(fails ? `${fails} FAILED` : 'all ok');
 await b.close(); process.exit(fails ? 1 : 0);

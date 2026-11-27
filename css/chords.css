@@ -1,0 +1,19 @@
+/* css/chords.css: chord steps (js/ui/chordui.js, js/ui/melody.js). Colours come from the note colours (js/scale.js, set as
+   --top / --bottom / --n1..--n3 on the element), so every skin works. */
+
+/* grid: a chord step keeps its root's gradient and gets a stripe of its other notes down the right edge, high note on top */
+.cell.chord { position: relative; font-size: 10px; letter-spacing: -.02em; }
+.cell.chord::before { content: ''; position: absolute; top: 3px; bottom: 3px; right: 3px; width: 6px;
+  background: linear-gradient(to top, var(--n1) 0 33.3%, var(--n2) 33.3% 66.6%, var(--n3) 66.6% 100%);
+  box-shadow: 0 0 0 1px var(--txt, var(--ink)); }
+.cell.chord.mark::after { right: 10px; }
+
+/* melody lane: a chord's other notes as short bars at their own heights, joined to the root by a thin line */
+.mdots { position: absolute; inset: 0; pointer-events: none; }
+.mdot { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(15px + var(--h) - 6px); width: 22px; height: 6px;
+  background: linear-gradient(var(--top), var(--bottom)); box-shadow: 0 0 0 1px var(--bench); }
+.mcell.sel .mdot { outline: 2px solid var(--selc); outline-offset: 1px; }
+
+/* panel */
+.chordsec { display: flex; flex-direction: column; gap: 2px; }
+.chordsec .chordname { align-self: flex-end; min-height: 1.2em; font-weight: 600; }
