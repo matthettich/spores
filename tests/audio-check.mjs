@@ -251,7 +251,7 @@ const v1 = await q.evaluate(async () => {
   const s = window.spores.store.get();
   return {v: s.v, bpm: s.bpm, clips: JSON.stringify(s.scenes.A.clips), step: s.scenes.A.steps.t1[0].on, name: s.scenes.A.name};
 });
-ok(v1.v === 4 && v1.bpm === 99 && v1.clips === '{}' && v1.step && v1.name === 'Old', 'old v1 .json opens, migrated to v4 (current): ' + JSON.stringify(v1));
+ok(v1.v === 5 && v1.bpm === 99 && v1.clips === '{}' && v1.step && v1.name === 'Old', 'old v1 .json opens, migrated to v5 (current): ' + JSON.stringify(v1));
 ok(!q.errs.length, 'no console errors (fresh profile): ' + q.errs.join(' | '));
 await q.close(); await fresh.close();
 

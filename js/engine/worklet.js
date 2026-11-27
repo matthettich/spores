@@ -9,7 +9,7 @@
  *                      {t:'play', mode, scene, block}  mode 'scene' loops a scene, 'song' plays the blocks
  *                      {t:'scene', scene}           change scene (at the next bar, so it stays in time)
  *                      {t:'stop'}
- *                      {t:'hit', ti, note, vel}     play one track now (tapping a step, Prev / Next sound)
+ *                      {t:'hit', ti, note, vel}     play one track now (tapping a step, Prev / Next sound); + notes: a chord
  *                      {t:'wasm', bytes}            pump-synth.wasm's bytes, compiled here (COIL, ORBIT, FOLD, BOING)
  *                      {t:'buf', id, note, data}    a recorded note of a Modal / Scanned track (render-worker.js)
  *                      {t:'cvtest', ch, value}      hold a CV output at a value (Tune CV, Test outputs); value null = let go
@@ -58,6 +58,7 @@ function loopOrder(cap, len, pad, rot){
   return out;
 }
 
+const MAX_PLAYS = 12, FADE = 128;   // rendered tracks: notes ringing at once (3 four-note chords); samples a stolen note fades over
 const LOOKAHEAD = 0.12;      // seconds: how far ahead a step is decided (MIDI needs this lead)
 const START_DELAY = 0.06;    // seconds between pressing Play and the first step
 const PPQ_PER_STEP = 6;      // MIDI clock: 24 per quarter note = 6 per 16th
@@ -100,12 +101,14 @@ class SporesEngine extends AudioWorkletProcessor {
     else if (m.t === 'ping') this.pingStart(m);
     else if (m.t === 'peek') this.port.postMessage({t: 'peek', clips: [...this.clips.keys()], fx: this.fx.count,   // (tests / debugging)
       songStep: this.songStep, tapes: Object.fromEntries([...this.tapes].map(([id, v]) => [id, v.cur ? v.cur.id : null])), recording: !!this.rec});
-    else if (m.t === 'hit'){ const tr = this.song && this.song.tracks[m.ti]; if (tr) this.trigger(m.ti, currentFrame, m.note, m.vel, (m.len || 0.25) * sampleRate); }
+    else if (m.t === 'hit'){ const tr = this.song && this.song.tracks[m.ti]; if (!tr) return; const len = (m.len || 0.25) * sampleRate;
+      if (Array.isArray(m.notes) && m.notes.length > 1) this.chord(m.ti, currentFrame, m.notes, m.vel, len); else this.trigger(m.ti, currentFrame, m.note, m.vel, len); }
   }
 
   /* one voice per track, kept across song updates (so a setting changing mid-note doesn't cut it). The kind of voice
-     follows the track's engine: blip (2 voices, round robin), acid (mono), pump (a wasm handle, poly), rendered
-     (recorded notes, up to 6 ringing at once). */
+     follows the track's engine: blip (2 voices, round robin), acid (mono; a track with chords gets 3 more AcidCores in
+     v.more, one per chord note, made here and never on the audio thread's hot path), pump (a wasm handle, poly), rendered
+     (recorded notes, up to MAX_PLAYS ringing at once; the oldest fades out over a few ms when a new one needs room). */
   syncVoices(){
     const keep = new Map();
     for (const tr of this.song.tracks){
@@ -128,10 +131,12 @@ class SporesEngine extends AudioWorkletProcessor {
         else { v.pump = new PumpVoice(tr.engine, tr.vals); v.key = JSON.stringify(tr.vals); }
       }
       const key = JSON.stringify(tr.vals);
+      if (v.synth && tr.poly && !v.more) v.more = [1, 2, 3].map(() => { const a = new AcidCore(sampleRate); a.set(Object.assign({}, tr.vals, {oct: 0})); return {synth: a, rate: 1, gain: 1, note: -1}; });
       if (v.key !== key){
         v.key = key;
         if (v.drum) for (const d of v.drum) d.set(tr.vals);
         if (v.synth){ v.synth.p = null; v.synth.set(Object.assign({}, tr.vals, {oct: 0})); }
+        if (v.more) for (const m of v.more){ m.synth.p = null; m.synth.set(Object.assign({}, tr.vals, {oct: 0})); }
         if (v.pump) v.pump.set(tr.vals);
         // (rendered tracks keep their old recordings until the page sends the new ones: no gap while they're made)
       }
@@ -170,7 +175,7 @@ class SporesEngine extends AudioWorkletProcessor {
     else if (this.rec) this.recordEnd('cancelled');
     for (const v of this.tapes.values()) v.release();
     this.queue = this.queue.filter(q => !q.on && !q.sync && !q.stopSong); this.ending = false;   // drop notes not yet started (and a Loop-song stop); let note-offs through
-    for (const [, v] of this.voices){ if (v.synth) v.synth.off(); if (v.pump) v.pump.allOff(); if (v.engine === 'cv') v.gate = false; }
+    for (const [, v] of this.voices){ if (v.synth) v.synth.off(); if (v.more) for (const x of v.more) x.synth.off(); if (v.pump) v.pump.allOff(); if (v.engine === 'cv') v.gate = false; }
     this.port.postMessage({t: 'stop', time: currentFrame / sampleRate});
   }
 
@@ -213,8 +218,9 @@ class SporesEngine extends AudioWorkletProcessor {
       const L = tr.len > 0 ? Math.min(tr.len, sc.len) : sc.len, idx = this.counter % L, st = lane[idx];
       if (!st || (solo ? !Z[ti] : M[ti])) return;
       if (st.chance < 100 && this.random() * 100 >= st.chance) return;
-      this.trigger(ti, frame, st.note, st.vel, gateLen, st.cv);
-      events.push({ti, idx, note: st.note, vel: st.vel, len: gateLen / sampleRate});
+      if (st.notes && tr.type !== 'cv') this.chord(ti, frame, st.notes, st.vel, gateLen);   // a chord: all its notes on this sample
+      else this.trigger(ti, frame, st.note, st.vel, gateLen, st.cv);
+      events.push(st.notes ? {ti, idx, note: st.note, notes: st.notes, vel: st.vel, len: gateLen / sampleRate} : {ti, idx, note: st.note, vel: st.vel, len: gateLen / sampleRate});
     });
     // audio tracks: where this step falls in each take's loop, on the step's own (unswung) frame
     if (s.hasAudio) this.queue.push({frame: this.nextFrame, sync: true, scene: this.sceneKey, runStep: this.runStep, stepLen, mode: this.mode, songStep: this.songStep}), this.queue.sort((a, b) => a.frame - b.frame);
@@ -226,7 +232,14 @@ class SporesEngine extends AudioWorkletProcessor {
 
   // queue a note on (and off) at an exact sample. MIDI and CV tracks make no sound here. A drum's note is its sound's
   // (BOING: which drum); a pump voice starts early by its latency, so it is heard on the beat.
-  trigger(ti, frame, note, vel, len, cv){
+  /* a chord: every note on the same sample. vi: which voice of a mono engine plays it (acid: 0 = v.synth, 1-3 = v.more);
+     cg: each note's level so the chord is about as loud as one note (1/√n) on the engines that just add their voices
+     (acid, rendered); the pump synths are poly and mix their own voices. CV tracks never get here (compile: root only). */
+  chord(ti, frame, notes, vel, len){
+    const n = Math.min(4, notes.length), cg = 1 / Math.sqrt(n);
+    for (let k = 0; k < n; k++) this.trigger(ti, frame, notes[k], vel, len, undefined, k, cg);
+  }
+  trigger(ti, frame, note, vel, len, cv, vi = 0, cg = 1){
     const tr = this.song.tracks[ti];
     if (tr.type === 'cv'){   // pitch + gate, on the sample
       this.queue.push({frame, ti, on: true, note, cv: cv ?? 0}, {frame: frame + len, ti, on: false, note});
@@ -236,8 +249,8 @@ class SporesEngine extends AudioWorkletProcessor {
     const v = this.voices.get(tr.id), lat = v && v.pump ? v.pump.lat || 0 : 0;
     if (tr.type === 'drum' && tr.drumNote != null) note = tr.drumNote;
     const at = Math.max(currentFrame, frame - lat);
-    this.queue.push({frame: at, ti, on: true, note, vel});
-    if (tr.type === 'synth' || (v && v.pump)) this.queue.push({frame: at + (tr.type === 'drum' ? Math.min(len, sampleRate * 0.03) : len), ti, on: false, note});
+    this.queue.push({frame: at, ti, on: true, note, vel, vi, cg});
+    if (tr.type === 'synth' || (v && v.pump)) this.queue.push({frame: at + (tr.type === 'drum' ? Math.min(len, sampleRate * 0.03) : len), ti, on: false, note, vi});
     this.queue.sort((a, b) => a.frame - b.frame);
   }
 
@@ -246,7 +259,7 @@ class SporesEngine extends AudioWorkletProcessor {
     this.playing = false;
     for (const v of this.tapes.values()) v.release();
     this.queue = this.queue.filter(q => !q.on && !q.sync && !q.end);
-    for (const [, v] of this.voices){ if (v.synth) v.synth.off(); if (v.pump) v.pump.allOff(); if (v.engine === 'cv') v.gate = false; }
+    for (const [, v] of this.voices){ if (v.synth) v.synth.off(); if (v.more) for (const x of v.more) x.synth.off(); if (v.pump) v.pump.allOff(); if (v.engine === 'cv') v.gate = false; }
     this.bounce.end = currentFrame + off - this.bounce.start;
   }
   // where a track's sound goes when it has no effects: the mix, or (stem export) its own buffers
@@ -262,14 +275,16 @@ class SporesEngine extends AudioWorkletProcessor {
     if (v.engine === 'cv'){ if (q.on){ v.val = q.cv; v.gate = true; v.note = q.note; } else if (v.note === q.note) v.gate = false; }
     else if (v.drum){ if (q.on){ v.rr ^= 1; v.drum[v.rr].trig(vel); } }
     else if (v.synth){
-      if (q.on){ v.rate = Math.pow(2, (q.note - 36) / 12); v.gain = 0.35 + 0.65 * vel; v.synth.on(false, q.vel >= 112); v.note = q.note; }
-      else if (v.note === q.note) v.synth.off();
+      const x = q.vi && v.more ? v.more[q.vi - 1] : q.vi ? null : v; if (!x) return;   // (x.synth: v.synth itself for voice 0)
+      if (q.on){ x.rate = Math.pow(2, (q.note - 36) / 12); x.gain = (0.35 + 0.65 * vel) * (q.cg || 1); x.synth.on(false, q.vel >= 112); x.note = q.note; }
+      else if (x.note === q.note) x.synth.off();
     }
     else if (v.pump){ if (q.on) v.pump.on(off, q.note, q.vel || 100); else v.pump.off(off, q.note); }
     else if (v.bufs && q.on){
       const b = v.bufs.get(q.note); if (!b) return;   // not recorded yet (it will be in a moment)
-      if (v.plays.length >= 6) v.plays.shift();
-      v.plays.push({b, i: 0, g: 0.25 + 0.75 * vel});
+      let live = 0; for (const p of v.plays) if (!p.fade) live++;
+      if (live >= MAX_PLAYS) for (const p of v.plays) if (!p.fade){ p.fade = FADE; break; }   // the oldest makes room: a short fade, no click
+      v.plays.push({b, i: 0, g: (0.25 + 0.75 * vel) * (q.cg || 1), fade: 0});
     }
   }
 
@@ -512,14 +527,23 @@ class SporesEngine extends AudioWorkletProcessor {
       } else if (v.plays){
         for (let j = v.plays.length - 1; j >= 0; j--){
           const p = v.plays[j], k = g * p.g * 0.4, e = Math.min(b, a + p.b.length - p.i);
+          if (p.fade){   // being let go: down to silence over FADE samples, then gone
+            const f = Math.min(e, a + p.fade);
+            for (let i = a; i < f; i++){ const x = p.b[p.i++] * k * (--p.fade / FADE); L[i] += x; if (R !== L) R[i] += x; }
+            if (p.fade <= 0 || p.i >= p.b.length) v.plays.splice(j, 1);
+            continue;
+          }
           for (let i = a; i < e; i++){ const x = p.b[p.i++] * k; L[i] += x; if (R !== L) R[i] += x; }
           if (p.i >= p.b.length) v.plays.splice(j, 1);
         }
       } else if (v.synth){
-        if (v.synth.stage === 0 && v.synth.env === 0) return;
-        v.synth.render(tL, tR, a, b, v.rate);
-        const k = g * v.gain * 0.95;
-        for (let i = a; i < b; i++){ L[i] += tL[i] * k; if (R !== L) R[i] += tR[i] * k; }
+        for (let n = 0; n < (v.more ? 4 : 1); n++){   // voice 0, then a chord's other notes (v.more)
+          const x = n ? v.more[n - 1] : v;
+          if (x.synth.stage === 0 && x.synth.env === 0) continue;
+          x.synth.render(tL, tR, a, b, x.rate);
+          const k = g * x.gain * 0.95;
+          for (let i = a; i < b; i++){ L[i] += tL[i] * k; if (R !== L) R[i] += tR[i] * k; }
+        }
       }
   }
 }

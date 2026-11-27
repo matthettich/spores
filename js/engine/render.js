@@ -44,7 +44,7 @@ async function renderedNotes(c){
   c.tracks.forEach((t, ti) => {
     if (!t.rendered) return;
     const notes = new Set();
-    for (const sc of Object.values(c.scenes)) for (const st of sc.steps[ti] || []) if (st) notes.add(st.note);
+    for (const sc of Object.values(c.scenes)) for (const st of sc.steps[ti] || []) if (st) for (const n of st.notes || [st.note]) notes.add(n);   // a chord: every note
     for (const note of notes) want.push({id: t.id, engine: t.engine, vals: t.vals, note});
   });
   if (!want.length) return [];

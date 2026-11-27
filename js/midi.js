@@ -70,7 +70,7 @@ export function attach(engine, getSong){
     for (const ev of m.events){
       const t = s.tracks[ev.ti]; if (!t) continue;
       const lenMs = ev.len * 1000;
-      if (t.type === 'midi' && t.midi && t.midi.port) note(t.midi.port, t.midi.ch, ev.note, ev.vel, at, lenMs);
+      if (t.type === 'midi' && t.midi && t.midi.port) for (const n of ev.notes || [ev.note]) note(t.midi.port, t.midi.ch, n, ev.vel, at, lenMs);   // a chord: all its note-ons together
       // the Seeds link: every drum hit also sends its track's seedsNote on the link channel
       if (t.type === 'drum' && link.seedsPort) note(link.seedsPort, link.seedsCh || 16, t.seedsNote ?? 36, ev.vel, at, Math.min(lenMs, 60));
     }

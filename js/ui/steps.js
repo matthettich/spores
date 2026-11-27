@@ -6,7 +6,7 @@
  * through store.edit, so phase 3's undo / save pick it up for free.
  */
 import {STEPS_PER_BAR} from '../engine/engine.js';
-import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js';
+import {KEYS, SCALES, noteColor, degName} from '../scale.js';
 import {renameTrack} from './trackctl.js';
 import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, newSongTrack, isSongTrack, canAddAudio, copySceneInto, isMuted, isSolo, anySolo as anySoloIn, setQuiet} from '../store.js';
 import {trackMeters} from './trackmeters.js';
@@ -16,7 +16,8 @@ import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
 import {openHelp} from './help.js';
 import {fileTag} from './filetag.js';
-import {nudgeNote} from './stepedit.js';
+import {melodyLane} from './melody.js';
+import {paintNoteCell} from './chordui.js';
 import {attachNoteDrag, mountNoteKeys} from './notedrag.js';
 import {previewStep} from './preview.js';
 import {audioLane} from './audiolane.js';
@@ -109,17 +110,10 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   gridWrap.append(gridEl);
   const panelEl = el('aside', {class: 'panel', 'aria-label': 'Track settings'});
 
-  /* melody lane: under the grid, for the selected Synth / MIDI / CV track (drums have no pitch) */
-  const melodyNote = el('span', {class: 'mnote num'}, '—');
-  const noteUp = el('button', {class: 'tb', title: 'Up one scale step', 'aria-label': 'Note up', onclick: () => moveNote(1)}, '▲');
-  const noteDown = el('button', {class: 'tb', title: 'Down one scale step', 'aria-label': 'Note down', onclick: () => moveNote(-1)}, '▼');
-  const melodyLane = el('div', {class: 'mlane'});
-  const melodyEl = el('div', {class: 'melody', hidden: true},
-    el('div', {class: 'mlabel'},
-      el('span', {class: 'mlabel-t'}, 'Melody'), noteUp, noteDown, melodyNote,
-      el('span', {class: 'hint'}, 'Tap a note to select it; ▲ ▼ move it up or down the scale.')),
-    melodyLane);
-  gridWrap.append(melodyEl);
+  /* melody lane: under the grid, for the selected Synth / MIDI / CV track (js/ui/melody.js) */
+  const melody = melodyLane({store, engine, state, selectStep: (ti, i) => selectStep(ti, i)});
+  const drawMelody = s => melody.draw(s);
+  gridWrap.append(melody.el);
 
   const workspace = el('div', {class: 'workspace'}, tracksEl, gridWrap, panelEl);
   // the two columns scroll together
@@ -253,15 +247,6 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   function selectStep(ti, i){
     state.track = ti; state.step = i;
     drawTracks(); paintGrid(); drawMelody(); panel.refresh();
-  }
-
-  // ▲ ▼ in the melody lane: move the selected note one scale step, through store.edit
-  function moveNote(by){
-    const t = store.get().tracks[state.track];
-    if (!t || t.type === 'drum' || t.type === 'audio' || state.step == null) return;
-    const where = {scene: state.scene, trackId: t.id, index: state.step};
-    nudgeNote(store, where, by);
-    previewStep(engine, store, where);
   }
 
   // {scene, trackId, index} of a step on a melodic (not drum / audio) track, else null
@@ -401,77 +386,13 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
         b.classList.toggle('mark', on && (vel !== 100 || (more && chance !== 100)));
         b.classList.toggle('chance', on && more && chance < 100);
         b.title = on ? (more ? `Velocity ${vel} · chance ${chance}%` : `Velocity ${vel}`) : '';
-        if (on && t.type !== 'drum'){
-          const c = noteColor(st.deg || 0, s.scale);
-          b.style.setProperty('--top', c.top);
-          b.style.setProperty('--bottom', c.bottom);
-          b.style.setProperty('--txt', c.text);
-          b.textContent = degName(st.deg || 0, s.key, s.scale);
-        } else {
-          b.style.removeProperty('--top'); b.style.removeProperty('--bottom'); b.style.removeProperty('--txt');
-          b.textContent = '';
+        if (on && t.type !== 'drum') paintNoteCell(b, st, s);   // the note's colour and name; a chord's stripe (js/ui/chordui.js)
+        else {
+          for (const k of ['--top', '--bottom', '--txt', '--n1', '--n2', '--n3']) b.style.removeProperty(k);
+          b.classList.remove('chord'); b.textContent = '';
         }
       });
     });
-  }
-
-  /* Melody lane: one bar per step, height = pitch, drawn under the grid for the selected melodic track. Tap a bar to
-     select that step; the lane's ▲ ▼ move the selected note. Drum tracks have no pitch, so the lane hides. */
-  let melodySig = '', melodyCells = [];
-
-  function drawMelody(s = store.get()){
-    const sc = s.scenes[state.scene], t = s.tracks[state.track];
-    const melodic = !!(sc && t && t.type !== 'drum' && t.type !== 'audio');
-    melodyEl.hidden = !melodic;
-    if (!melodic){
-      // forget the old lane, so coming back to a melodic track builds it again
-      if (melodySig){ melodySig = ''; melodyCells = []; melodyLane.innerHTML = ''; }
-      return;
-    }
-
-    const len = clamp(sc.bars | 0 || 1, 1, 4) * STEPS_PER_BAR;
-    const sig = [state.scene, state.track, t.id, len].join('|');
-    if (sig !== melodySig){
-      melodySig = sig;
-      melodyLane.innerHTML = '';
-      melodyCells = [];
-      for (let i = 0; i < len; i++){
-        const b = el('button', {type: 'button',
-          class: 'mcell' + (i % 16 === 0 && i > 0 ? ' barstart' : i % 4 === 0 && i > 0 ? ' beatstart' : '')});
-        b.addEventListener('click', () => selectStep(state.track, i));
-        const bar = el('span', {class: 'mbar'});
-        const name = el('span', {class: 'mname'});
-        b.append(bar, name);
-        melodyLane.append(b);
-        melodyCells.push({b, bar, name});
-      }
-    }
-
-    const lane = (sc.steps && sc.steps[t.id]) || [];
-    const degs = [];
-    for (let i = 0; i < len; i++){ const st = lane[i]; if (st && st.on) degs.push(st.deg || 0); }
-    const lo = Math.min(0, ...degs), hi = Math.max(0, ...degs), span = Math.max(7, hi - lo);
-    melodyCells.forEach(({b, bar, name}, i) => {
-      const st = lane[i], on = !!(st && st.on), d = on ? (st.deg || 0) : 0;
-      b.classList.toggle('sel', state.step === i);
-      b.style.setProperty('--h', (8 + Math.round(((d - lo) / span) * 52)) + 'px');
-      bar.hidden = !on;
-      if (on){
-        const c = noteColor(d, s.scale);
-        bar.style.setProperty('--top', c.top);
-        bar.style.setProperty('--bottom', c.bottom);
-        name.textContent = degName(d, s.key, s.scale);
-        b.setAttribute('aria-label', `Step ${i + 1}, ${name.textContent}`);
-      } else {
-        name.textContent = '';
-        b.setAttribute('aria-label', `Step ${i + 1}, empty`);
-      }
-    });
-
-    const sel = state.step != null ? lane[state.step] : null;
-    const movable = !!(sel && sel.on);
-    melodyNote.textContent = movable ? midiName(degToMidi(sel.deg || 0, s.key, s.scale, t.oct ?? 3)) : '—';
-    noteUp.disabled = noteDown.disabled = !movable;
   }
 
   // tap = on / off; hold 400 ms or right-click = select the step for the panel
@@ -542,6 +463,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   const light = {
     'Step on / off': () => { paintGrid(); drawMelody(); panel.refresh(); },
     'Step note': () => { paintGrid(); drawMelody(); panel.refresh(); },
+    'Step chord': () => { paintGrid(); drawMelody(); panel.refresh(); },
     'Step velocity': () => { paintGrid(); panel.refresh(); },
     'Step chance': () => { paintGrid(); panel.refresh(); },
     'Tempo': () => { if (document.activeElement !== bpm) bpm.value = store.get().bpm; },
@@ -600,7 +522,8 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
         if (!L) return;
         const b = rc[m.counter % L];
         if (b){ b.classList.add('now'); lit.push(b); }
-        if (ti === state.track && !melodyEl.hidden && melodyCells.length){
+        const melodyCells = melody.cells;
+        if (ti === state.track && !melody.el.hidden && melodyCells.length){
           const M = melodyCells.length;
           const ML = s.mode === 'more' && t.len > 0 ? Math.min(t.len, M) : M;
           const mb = melodyCells[m.counter % ML];
