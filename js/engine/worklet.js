@@ -22,6 +22,7 @@
  *                      {t:'ping', count, gap}       latency test: bursts every `gap` frames, the input recorded meanwhile
  *                      {t:'tfx', bytes}             tfx.wasm's bytes, compiled here: the track effects (fxhost.js)
  *                      {t:'peek'}                   → {t:'peek', clips, tapes, recording} (tests)
+ *                      {t:'halt'}                   export only: stop at once (Cancel), see bounce.js
  * Outputs: 0 = the stereo mix, 1 = CV_CHANNELS of CV (cv.js), sample values, straight to the interface.
  * Messages out:        {t:'start', time}            first step's time, for MIDI Start
  *                      {t:'step', time, frame, len, scene, block, rep, counter, events, clocks}
@@ -38,6 +39,7 @@ import {pumpInit, PumpVoice} from './pump.js';
 import {TapeVoice, Clicks, Capture} from './tape.js';
 import {SongTape, SongCapture} from './songtape.js';
 import {FxHost} from './fxhost.js';
+import {Bounce} from './bounce.js';
 
 /* A wasm module from the page: its bytes (compiled here: a compiled WebAssembly.Module can't be posted into a realtime
    AudioWorklet in current Chrome, it arrives as a 'messageerror'), or a Module (offline renders' processorOptions). */
@@ -65,6 +67,7 @@ class SporesEngine extends AudioWorkletProcessor {
     const o = opts && opts.processorOptions;
     if (o && o.wasm) pumpInit(o.wasm);
     if (o && o.tfx) this.fx.init(o.tfx);
+    if (o && o.bounce) this.bounce = new Bounce(o.bounce, sampleRate, this.port);   // an export (bounce.js)
     if (o && o.song){ for (const c of o.clips || []) this.msg(Object.assign({t: 'clip'}, c)); this.msg({t: 'song', song: o.song}); for (const b of o.bufs || []) this.msg(Object.assign({t: 'buf'}, b)); if (o.play) this.msg(Object.assign({t: 'play'}, o.play)); }
   }
 
@@ -80,6 +83,7 @@ class SporesEngine extends AudioWorkletProcessor {
     else if (m.t === 'clip') this.clips.set(m.id, m.data);
     else if (m.t === 'unclip') this.clips.delete(m.id);
     else if (m.t === 'input'){ this.inputOn = !!m.on; }
+    else if (m.t === 'halt'){ if (this.bounce) this.bounce.finish('halted'); }
     else if (m.t === 'record') this.recordStart(m);
     else if (m.t === 'recstop') this.recordStop(m);
     else if (m.t === 'ping') this.pingStart(m);
@@ -142,6 +146,7 @@ class SporesEngine extends AudioWorkletProcessor {
       this.nextFrame += 4 * beat;
     }
     this.playing = true; this.fx.start(this.nextFrame);
+    if (this.bounce && this.bounce.start < 0) this.bounce.start = Math.round(this.nextFrame);
     this.port.postMessage({t: 'start', time: this.nextFrame / sampleRate});
   }
 
@@ -219,7 +224,19 @@ class SporesEngine extends AudioWorkletProcessor {
     this.queue.sort((a, b) => a.frame - b.frame);
   }
 
+  /* export: the song's end, on its exact sample. Like stop(), but the effects keep running (their tails ring out) */
+  bounceEnd(off){
+    this.playing = false;
+    for (const v of this.tapes.values()) v.release();
+    this.queue = this.queue.filter(q => !q.on && !q.sync && !q.end);
+    for (const [, v] of this.voices){ if (v.synth) v.synth.off(); if (v.pump) v.pump.allOff(); if (v.engine === 'cv') v.gate = false; }
+    this.bounce.end = currentFrame + off - this.bounce.start;
+  }
+  // where a track's sound goes when it has no effects: the mix, or (stem export) its own buffers
+  stemBuf(id){ return this.bounce && this.bounce.stems ? this.bounce.bufs.get(id) || null : null; }
+
   fire(q, off){
+    if (q.end) return this.bounceEnd(off);
     if (q.sync) return this.syncTapes(q, off);
     const tr = this.song.tracks[q.ti], v = tr && this.voices.get(tr.id); if (!v) return;
     const vel = Math.max(0, Math.min(127, q.vel || 100)) / 127;
@@ -343,7 +360,11 @@ class SporesEngine extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs){
-    const out = outputs[0], L = out[0], R = out[1] || out[0], n = L.length, f0 = currentFrame;
+    const bo = this.bounce;
+    if (bo && bo.done){ for (const o of outputs) for (const ch of o) ch.fill(0); return true; }   // export finished: silence
+    const sm = bo && bo.stems;   // stem export: each track into its own channels, the mix into a scratch pair
+    if (sm){ for (const ch of outputs[0]) ch.fill(0); bo.clear(); }
+    const out = outputs[0], L = sm ? bo.mL : out[0], R = sm ? bo.mR : out[1] || out[0], n = out[0].length, f0 = currentFrame;
     L.fill(0); if (R !== L) R.fill(0);
     // the input (recording): channel 0 of input 0, when something is connected
     const inp = inputs && inputs[0] && inputs[0][0] && inputs[0][0].length ? inputs[0][0] : null;
@@ -351,7 +372,13 @@ class SporesEngine extends AudioWorkletProcessor {
     if (this.rec) this.recordFeed(inp, f0, n);
     if (this.ping && this.ping.cap.feed(inp, f0, n)){ const d = this.ping.cap.buf; this.port.postMessage({t: 'pong', data: d, at: this.ping.at}, [d.buffer]); this.ping = null; }
     const CV = outputs[1] || []; for (const ch of CV) ch.fill(0);
-    if (this.playing && this.song) while (this.nextFrame < f0 + n + LOOKAHEAD * sampleRate) this.announce();
+    if (this.playing && this.song) while (this.nextFrame < f0 + n + LOOKAHEAD * sampleRate){
+      if (bo && bo.left-- <= 0){   // export: every step has been played; the end is queued on the sample after the last
+        if (!bo.ending){ bo.ending = true; this.queue.push({frame: this.nextFrame, end: true}); this.queue.sort((a, b) => a.frame - b.frame); }
+        break;
+      }
+      this.announce();
+    }
     if (!this.song) return true;
     for (const c of this.fx.chains.values()){ c.L.fill(0); c.R.fill(0); }   // tracks with effects play into their own buffers
     // render in pieces between queued events, so every hit lands on its own sample
@@ -367,13 +394,20 @@ class SporesEngine extends AudioWorkletProcessor {
     for (const [ch, val] of this.cvHold) if (CV[ch]) CV[ch].fill(val);   // Tune CV / Test outputs win
     // pump voices run the whole block at once (their notes were sent with their offset in it)
     this.song.tracks.forEach(tr => { const v = this.voices.get(tr.id); if (!v || !v.pump) return; const c = this.fx.buffers(tr.id);
-      if (c) v.pump.render(c.L, c.R, n, 0.9); else v.pump.render(L, R, n, (tr.vol ?? 0.8) * 0.9); });
+      const sb = !c && this.stemBuf(tr.id);
+      if (c) v.pump.render(c.L, c.R, n, 0.9); else v.pump.render(sb ? sb.L : L, sb ? sb.R : R, n, (tr.vol ?? 0.8) * 0.9); });
     // the track effects (fxhost.js), then volume / mute / solo after them
     if (this.fx.chains.size){
       const solo = this.song.tracks.some(t => t.solo), Rx = R !== L ? R : this.tmpR;
-      for (const tr of this.song.tracks) if (this.fx.has(tr.id)) this.fx.run(tr.id, L, Rx, n, f0, (solo ? !tr.solo : tr.mute) ? 0 : (tr.vol ?? 0.8));
+      for (const tr of this.song.tracks) if (this.fx.has(tr.id)){ const sb = this.stemBuf(tr.id);
+        this.fx.run(tr.id, sb ? sb.L : L, sb ? sb.R : Rx, n, f0, (solo ? !tr.solo : tr.mute) ? 0 : (tr.vol ?? 0.8)); }
+    }
+    if (sm){   // stems: as they are (no master clip: the page sums them and clips that, as below)
+      for (const b of bo.bufs.values()){ out[2 * b.k].set(b.L); out[2 * b.k + 1].set(b.R); }
+      bo.take(null, null, f0, n); return true;
     }
     for (let i = 0; i < n; i++){ L[i] = Math.tanh(L[i]); if (R !== L) R[i] = Math.tanh(R[i]); }   // gentle master clip
+    if (bo) bo.take(L, R, f0, n);
     return true;
   }
 
@@ -401,12 +435,13 @@ class SporesEngine extends AudioWorkletProcessor {
     if (this.tapes.size){
       const solo = s.tracks.some(t => t.solo);
       for (const tr of s.tracks){ const v = this.tapes.get(tr.id); if (!v || !v.busy) continue; const c = this.fx.buffers(tr.id);
+        const sb = !c && this.stemBuf(tr.id);
         if (c) v.render(c.L, c.R, a, b, this.rec && this.rec.trackId === tr.id ? 0 : 0.9);   // (mute / solo / volume: after its effects)
-        else v.render(L, R, a, b, this.tapeLevel(tr, solo)); }
+        else v.render(sb ? sb.L : L, sb ? sb.R : R, a, b, this.tapeLevel(tr, solo)); }
     }
     s.tracks.forEach(tr => {
       const v = this.voices.get(tr.id); if (!v) return;
-      const c = this.fx.buffers(tr.id), L = c ? c.L : L0, R = c ? c.R : R0, g = c ? 0.9 : (tr.vol ?? 0.8) * 0.9;   // with effects: volume after them
+      const c = this.fx.buffers(tr.id), sb = !c && this.stemBuf(tr.id), L = c ? c.L : sb ? sb.L : L0, R = c ? c.R : sb ? sb.R : R0, g = c ? 0.9 : (tr.vol ?? 0.8) * 0.9;   // with effects: volume after them
       if (v.drum){
         if (!v.drum[0].on && !v.drum[1].on) return;
         mono.fill(0, a, b); v.drum[0].render(mono, a, b, g); v.drum[1].render(mono, a, b, g);

@@ -1,28 +1,31 @@
 /* js/wav.js: WAV files in and out, no libraries.
  *
- *   wavBytes(data, sr, bits = 32)  → Uint8Array   mono; bits 32 = 32-bit float (exact, used for loop takes in .spores
- *                                                 files), 24 / 16 = PCM (for export). PCM writing adapted from
+ *   wavBytes(data, sr, bits = 32)  → Uint8Array   data = a Float32Array (mono) or [L, R, …] (interleaved); bits 32 = 32-bit float (exact, used for loop takes in .spores
+ *                                                 files), 24 / 16 = PCM (24-bit: Export). PCM writing adapted from
  *                                                 ...Thunder Plus (wavBytes, index.html).
  *   wavRead(bytes)                 → {sr, data: Float32Array}   PCM 8 / 16 / 24 / 32 and float 32 / 64, any channel
  *                                                 count (mixed to mono); throws on anything else.
  */
 export function wavBytes(data, sr, bits = 32){
-  const bps = bits / 8, n = data.length, float = bits === 32, extra = float ? 12 : 0;   // float files carry a 'fact' chunk
-  const buf = new ArrayBuffer(44 + extra + n * bps), dv = new DataView(buf);
+  const chs = Array.isArray(data) ? data : [data], C = chs.length, bps = bits / 8, n = chs[0].length, float = bits === 32, extra = float ? 12 : 0;   // float files carry a 'fact' chunk
+  const buf = new ArrayBuffer(44 + extra + n * bps * C), dv = new DataView(buf);
   const w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
-  w(0, 'RIFF'); dv.setUint32(4, 36 + extra + n * bps, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true);
-  dv.setUint16(20, float ? 3 : 1, true); dv.setUint16(22, 1, true); dv.setUint32(24, sr, true); dv.setUint32(28, sr * bps, true);
-  dv.setUint16(32, bps, true); dv.setUint16(34, bits, true);
+  w(0, 'RIFF'); dv.setUint32(4, 36 + extra + n * bps * C, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true);
+  dv.setUint16(20, float ? 3 : 1, true); dv.setUint16(22, C, true); dv.setUint32(24, sr, true); dv.setUint32(28, sr * bps * C, true);
+  dv.setUint16(32, bps * C, true); dv.setUint16(34, bits, true);
   let o = 36;
   if (float){ w(o, 'fact'); dv.setUint32(o + 4, 4, true); dv.setUint32(o + 8, n, true); o += 12; }
-  w(o, 'data'); dv.setUint32(o + 4, n * bps, true); o += 8;
-  if (float){ new Float32Array(buf, o, n).set(data); return new Uint8Array(buf); }   // (o is a multiple of 4; little-endian on every machine we run on)
-  for (let i = 0; i < n; i++){
-    const s = Math.max(-1, Math.min(1, data[i]));
+  w(o, 'data'); dv.setUint32(o + 4, n * bps * C, true); o += 8;
+  if (float && C === 1){ new Float32Array(buf, o, n).set(chs[0]); return new Uint8Array(buf); }   // (o is a multiple of 4; little-endian on every machine we run on)
+  const u = new Uint8Array(buf);
+  for (let i = 0; i < n; i++) for (let c = 0; c < C; c++){
+    const x = chs[c][i];
+    if (float){ dv.setFloat32(o, x, true); o += 4; continue; }
+    const s = x > 1 ? 1 : x < -1 ? -1 : x || 0;
     if (bits === 16){ dv.setInt16(o, Math.round(s * 32767), true); o += 2; }
-    else { const v = Math.round(s * 8388607); dv.setUint8(o, v & 255); dv.setUint8(o + 1, (v >> 8) & 255); dv.setUint8(o + 2, (v >> 16) & 255); o += 3; }
+    else { const v = Math.round(s * 8388607); u[o] = v & 255; u[o + 1] = (v >> 8) & 255; u[o + 2] = (v >> 16) & 255; o += 3; }
   }
-  return new Uint8Array(buf);
+  return u;
 }
 
 export function wavRead(bytes){
