@@ -8,6 +8,9 @@
  *   track.midi.clock send MIDI clock + Start / Stop to this MIDI track's port.
  *   v2 (audio tracks): track.type 'audio' (≤ MAX_AUDIO_TRACKS), and scene.clips = {trackId: clip}, one loop take per
  *                    audio track per scene (newClip below). The samples are not in the song: js/audiostore.js.
+ *   v3 (effects): track.fx = [{id, type, on, p}], up to MAX_FX (4) on drum / synth / audio tracks (none on MIDI / CV).
+ *                    type: a key of js/engine/fx.js; p: {setting: value} (fx.js ranges); id: 'f…', unique in the track.
+ *                    Edit them with js/fxedit.js. Old files: fx = [].
  *   track.params     {setting: value} over the sound's own values (drum / synth). Settings and their ranges:
  *                    settingsFor(track.sound) in js/engine/sounds.js. Clear it when the sound changes.
  *
@@ -16,12 +19,13 @@
  * drag is one Undo — but only on the same target (edit's third argument, e.g. one step or one setting).
  */
 import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
+import {isFxType, fxClean, MAX_FX} from './engine/fx.js';
 
 // a track's chosen colour (none = by type: drums pink, synths teal…); the colours are --tc-<key> on :root
 export const TRACK_COLOURS = ['pink', 'orange', 'mustard', 'green', 'teal', 'blue', 'purple', 'grey'];
-export const VERSION = 2, MAX_TRACKS = 16, MAX_AUDIO_TRACKS = 4, CLIP_BARS = [1, 2, 4, 8], SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
+export const VERSION = 3, MAX_TRACKS = 16, MAX_AUDIO_TRACKS = 4, CLIP_BARS = [1, 2, 4, 8], SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
 const HISTORY = 80, MERGE_MS = 600;
-const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing', 'Step velocity', 'Step chance']);
+const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing', 'Step velocity', 'Step chance', 'Effect setting']);
 const TYPES = ['drum', 'synth', 'midi', 'cv', 'audio'];
 // a new loop take's playback settings (seconds for offset and fades; a few ms of fade keeps the loop seam from clicking)
 export const CLIP_DEFAULTS = {gain: 1, offset: 0, fadeIn: 0.004, fadeOut: 0.004, reverse: false};
@@ -36,7 +40,7 @@ export function newTrack(type = 'drum', sound, name){
   sound = sound || (type === 'drum' ? 'Kick' : type === 'synth' ? 'Acid bass' : '');
   return {id, name: name || sound || (type === 'midi' ? 'MIDI' : type === 'audio' ? 'Voice' : 'CV'), type, sound,
     midi: {port: '', ch: 1, clock: false}, cv: {pitch: 3, gate: 4, cal: null},
-    params: {}, seedsNote: GM[sound] ?? 36, oct: type === 'drum' ? 3 : 2, vol: 0.8, mute: false, solo: false};
+    params: {}, fx: [], seedsNote: GM[sound] ?? 36, oct: type === 'drum' ? 3 : 2, vol: 0.8, mute: false, solo: false};
 }
 
 // may another audio track be added? (MAX_AUDIO_TRACKS of the MAX_TRACKS)
@@ -143,6 +147,8 @@ export function migrate(input){
   s.v = s.v || 1;
   // v1 → v2 (2026-11-26): audio tracks; a scene may hold one loop take per audio track in scene.clips (none before)
   if (s.v === 1){ for (const sc of Object.values(s.scenes && typeof s.scenes === 'object' ? s.scenes : {})) if (sc && typeof sc === 'object') sc.clips = {}; s.v = 2; }
+  // v2 → v3 (2026-11-26): track effects; none before (fixTrack fills track.fx = [] and checks it in every version)
+  if (s.v === 2){ for (const t of Array.isArray(s.tracks) ? s.tracks : []) if (t && typeof t === 'object') t.fx = []; s.v = 3; }
   const base = newSong();
   for (const k of ['bpm', 'swing', 'key', 'scale', 'lock', 'mode']) if (s[k] === undefined) s[k] = base[k];
   s.tracks = Array.isArray(s.tracks) && s.tracks.length ? s.tracks.slice(0, MAX_TRACKS) : base.tracks;
@@ -188,6 +194,20 @@ function fixTrack(t){
   if (t.color !== undefined && !TRACK_COLOURS.includes(t.color)) delete t.color;   // optional; old songs have none
   if (typeof t.seedsNote !== 'number') t.seedsNote = GM[t.sound] ?? 36;
   t.mute = !!t.mute; t.solo = !!t.solo;
+  t.fx = fixFx(t);
+}
+
+// a track's effects: known types only, up to MAX_FX, settings in range, each with its own id; none on MIDI / CV tracks
+let fxSeq = 1;
+export const newFxId = () => 'f' + Date.now().toString(36) + (fxSeq++);
+function fixFx(t){
+  if (!(t.type === 'drum' || t.type === 'synth' || t.type === 'audio') || !Array.isArray(t.fx)) return [];
+  const seen = new Set();
+  return t.fx.filter(f => f && typeof f === 'object' && isFxType(f.type)).slice(0, MAX_FX).map(f => {
+    let id = typeof f.id === 'string' && /^[\w-]{1,40}$/.test(f.id) && !seen.has(f.id) ? f.id : newFxId();
+    seen.add(id);
+    return {id, type: f.type, on: f.on !== false, p: fxClean(f.type, f.p)};
+  });
 }
 
 // The song saved in this browser (localStorage), or null if there is none or it cannot be read.
