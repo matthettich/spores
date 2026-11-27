@@ -2,6 +2,24 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-27 — review findings 1 and 2: song files can no longer silence the mix or loop a billion times (Claude, on `dev`)
+- **Done (two commits, `js/store.js` only):** (1) `fixTrack` rebuilds `track.params` for drum / synth tracks from
+  `settingsFor(sound).all`: finite numbers only, clamped to each setting's min..max (rounded for `int` ones). Non-numbers,
+  NaN / Infinity and unknown keys are dropped, so a bad value can't reach `BlipVoice`. (2) `migrate` keeps only song
+  blocks whose scene exists, clamps `repeat` to 1..64 (bad / missing = 1), makes `loop` a boolean and keeps at most 128
+  blocks. If every block is dropped the song is left empty (not replaced by scene A). `v` stays 3; no undo / merge change.
+- **Tested:** the review's two repros as scratch files (deleted). Before: `BlipVoice` samples NaN; `repeat 1000000000`
+  kept and `songMap` gave 1000000001 bars. After: `{pitch:'loud', decay:1e9}` becomes `{decay: 4000}` and the samples
+  are finite; the song ends as `[A x1, A x64 loop]` with the missing-scene block gone (65 bars). Default params of every
+  drum / synth sound, `newSong` and `demoSong` params round-trip unchanged. `cd desktop && npm test` 11 pass.
+  `tests/save-check.mjs` in headless Chrome: all ok except "menu rows and shortcuts", which fails the same way on `851d5ef` (the test predates the File menu's Export… row).
+- **Odd / left:** a block saved before now gains `loop: false` on the next save (same meaning, only a new key). The
+  unknown-key drop means a file from a newer version loses settings this one doesn't know. Export length with a bad
+  repeat was not run through the Export UI, only reasoned from `songMap`.
+- **For the engine owner (🔴, not touched):** `BlipVoice.set` in `js/engine/voices.js` still applies values unchecked
+  (raw `resolve('Kick', {pitch:'loud'})` still renders NaN). Add the same `isFinite` fallback to the default that
+  `AcidCore.set` has. `worklet.js` also still plays `Math.max(1, b.repeat)` raw; harmless now that load clamps to 64.
+
 ## 2026-11-26 — every sound checked live; three slow pads fixed (Claude)
 - **Checked:** all 153 sounds played live (real-time AudioContext, peak at the output, new `tests/live-sounds-check.mjs`).
   Since FX1's fix (wasm bytes, not a compiled Module, posted to the worklet) Coil / Orbit / Fold / Boing all sound live;

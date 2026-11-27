@@ -166,7 +166,12 @@ export function migrate(input){
     }
   }
   s.scenes = Object.keys(scenes).length ? scenes : base.scenes;
-  s.song = Array.isArray(s.song) ? s.song : base.song;
+  // song blocks: only scenes that exist, repeat 1..64 (the Song screen's own limit), loop a boolean; all dropped = empty song
+  s.song = Array.isArray(s.song) ? s.song
+    .filter(b => b && typeof b === 'object' && s.scenes[b.scene])
+    .slice(0, 128)
+    .map(b => ({scene: b.scene, repeat: Math.max(1, Math.min(64, b.repeat | 0 || 1)), loop: !!b.loop}))
+    : base.song;
   s.link = Object.assign({}, base.link, s.link || {});
   // sound presets: {name, sound, params}, optional (songs from before they existed just have none)
   s.presets = Array.isArray(s.presets) ? s.presets
