@@ -19,8 +19,7 @@ offline render that already knows audio tracks and the effects from the plan bel
 **B. Audio tracks (record her voice, a few layers).**
 - New track type `audio`, up to 4 to start (one constant to raise later), within the 16 tracks. Colour: teal (audio).
 - A take is a loop of 1, 2, 4 or 8 bars that plays in time with the sequencer from the scene's start, looping for as
-  long as the scene runs. Proposed: one take per audio track per scene (like steps), stored as
-  `scene.clips[trackId] = {id, bars, bpm, sr, gain, offset, fadeIn, fadeOut}`; the samples live in IndexedDB (browser
+  long as the scene runs. One take per audio track for the whole song (owner, see answers below), stored on the track; the samples live in IndexedDB (browser
   and app autosave) and in the `.spores` file (Save). Undo keeps old takes until they leave the history.
 - Recording: pick the input (Mac mic or interface) once; a level meter; arm ● on the track, Record: one bar of
   count-in click, records exactly the loop length, then stops (or "keep going" records the next take; Undo goes back).
@@ -54,8 +53,12 @@ offline render that already knows audio tracks and the effects from the plan bel
 Copy and adapt into small Spores files (AGENTS.md: under ~600 lines each, plain-English labels, Spores' look); keep
 credits for anything third-party.
 
-**Questions for the owner before B:** one take per scene (proposed) or one per track for the whole song? Varispeed
-on tempo change OK? Her microphone: the Mac's or an interface? Should she hear herself while recording?
+**Owner's answers (2026-11-26):** one take per audio track for the whole song (not per scene): stored on the
+track (`track.clip = {id, bars, bpm, sr, gain, offset, fadeIn, fadeOut}`), looping under every scene; the track's
+existing Mute (and, later if wanted, an "off in this scene" switch) silences it where it shouldn't play. Tempo change
+after recording: varispeed, pitch may move. Input: either the Mac's mic or an interface, so an input picker (and an
+input channel choice for multi-input interfaces) is needed. Monitoring: a "Hear myself" toggle, off by default (with
+a one-line note to wear headphones).
 
 ## 2026-11-26 — PLAN (not started): up to 4 effects per track from Thunder Plus (🔴 engine work: Claude)
 - **Source (read only, don't change Thunder Plus):** `thunder-plus/waves/dsp/tfx.wasm` (674 KB): Thunder's native C++
