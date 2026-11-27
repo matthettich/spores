@@ -892,3 +892,16 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
 - Song screen: the position line ignored the blocks already played, so it jumped back at every scene change; fixed.
 - Tested: headless Chrome (meters move while playing, fall to 0 after Stop; ⧉ makes "Copy of Scene A" as C with the same
   steps; position line 3 → 99 % through the demo song then wraps); engine, fx, export, audio and save checks all pass.
+
+## 2026-11-27: track meters, copy scene on Steps, song position fix, File menu on Song (Claude)
+- Track meters: a thin bar in the track's colour under each name (js/ui/trackmeters.js). The worklet measures what each
+  track adds to the mix (snap/took around each voice, tape, pump voice and effects chain) and posts
+  {t: 'tlevels', lv: {trackId: peak}} every 6 blocks while anything sounds, plus once when it goes quiet; engine.on('tlevels').
+  Not measured during exports. MIDI / CV tracks stay empty (no sound here).
+- Steps screen: ⧉ next to the scene + copies the scene being edited into the next free letter and opens it
+  (store.js copySceneInto, shared with the Song screen's Copy).
+- Song screen: the position line ignored the blocks already played, so it jumped back at every scene change; fixed.
+- Song screen: the File menu (filebar.js) is in its header too. ⌘S / ⇧⌘S / ⌘O already worked on both screens (savefile.js bindFileKeys).
+- Tested: headless Chrome (meters move while playing, fall to 0 after Stop; ⧉ makes "Copy of Scene A" as C with the same
+  steps; position line 3 → 99 % through the demo song then wraps; File menu lists all items on Song); engine, fx, export,
+  audio and save checks all pass.

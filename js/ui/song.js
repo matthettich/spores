@@ -12,6 +12,7 @@ import {el} from './dom.js';
 import {ask, toast} from './dialog.js';
 import {openHelp} from './help.js';
 import {fileTag} from './filetag.js';
+import {mountFileMenu} from './filebar.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const bars = sc => clamp((sc && sc.bars) | 0 || 1, 1, 4);
@@ -37,6 +38,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
     el('span', {class: 'ico'}, '↷'), el('span', {class: 'lbl'}, 'Redo'));
 
   // the same left side as the Steps screen (js/ui/steps.js): name, Steps | Song, then Play and the tempo
+  const fileWrap = el('div', {class: 'menu-wrap'});
   const header = el('header', {class: 'hdr'},
     el('span', {class: 'app-name'}, '...Spores'), fileTag(files),
     el('div', {class: 'seg', role: 'group', 'aria-label': 'Screen'},
@@ -45,6 +47,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
     el('div', {class: 'hgroup'}, playBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
     el('span', {class: 'hspace'}),
     el('div', {class: 'hgroup'}, undoBtn, redoBtn),
+    fileWrap,   // the same File menu as the Steps screen (save / open from either screen)
     el('button', {class: 'tb help', title: 'How Spores works', 'aria-label': 'Help', onclick: () => openHelp()}, '?'));
 
   /* ---- body: the blocks, the position bar, the scene library ---- */
@@ -78,6 +81,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
       libEl));
 
   root.append(header, body);
+  mountFileMenu(fileWrap, {store, files});
 
   /* ---- actions ---- */
   function togglePlay(){
