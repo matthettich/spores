@@ -25,6 +25,10 @@ js/scale.js         keys, scales, note names, note colours (see Note colours)
 js/ui/steps.js      Steps screen
 js/ui/song.js       Song screen
 js/ui/panel.js      right-hand track / step panel
+js/zip.js           tiny stored-zip writer / reader (crc32 from Thunder Plus)
+js/ui/savefile.js   Save, Save as…, Save a copy…, Open…, Open Recent (desktop); Ctrl/Cmd+S / Shift+S / O
+js/ui/filestate.js  the current file, unsaved-changes dot, remembered Chrome file handle; filetag.js shows it in the header
+desktop/files.js    the desktop app's file channels (+ path-allow.js: only files the person picked)
 js/midi.js          Web MIDI ports, note out, clock out
 js/engine/          🔴 Claude only: clock worklet, voices, CV out
   engine.js           page side: AudioContext, compile(song) for the worklet, playhead + MIDI timing
@@ -38,6 +42,17 @@ js/ui/cv.js         a CV track's panel section, Tune CV… and Test outputs…
 tools/gen-sounds.mjs  re-copies the generated engine files from a Thunder Plus checkout
 tests/*.mjs           headless engine and sound checks (dev only, see each file)
 ```
+
+## Saving
+
+The song saves itself in the browser (localStorage) a moment after every change: crash recovery, not a file. **File › Save**
+(Ctrl/Cmd+S) writes a **`.spores` file** (a zip with `song.json` inside; recorded audio will join it as `audio/<id>.wav`):
+the first time it asks where, after that it writes the same file silently; **Save as…** (Shift+Ctrl/Cmd+S) picks a new
+one; **Save a copy…** downloads a copy and leaves the song's file alone. **Open…** (Ctrl/Cmd+O) takes `.spores` and the old
+`.json` songs (a `.json` is saved on as a new `.spores`, never overwritten) and asks first; Undo brings the old song back.
+The song's name and a dot while there are unsaved changes show in the page title and beside the app name. The dot is "the
+song differs from what was last saved", so undoing back to the saved state clears it. Chrome keeps the file handle (IndexedDB),
+the desktop app keeps the path and offers Open Recent and a Save / Don't save / Cancel box when closing with unsaved changes.
 
 ## Data (one song)
 

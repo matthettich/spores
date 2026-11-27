@@ -2,11 +2,37 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
-## 2026-11-26 — PLAN (not started): Save, audio tracks, export (owner's request)
+## 2026-11-26 — Save (plan step A) done (Claude agent, on `dev`, not pushed)
+- **Done:** `.spores` files (a stored zip of `song.json`; `js/zip.js`, crc32 + headers adapted from Thunder Plus; the API is a
+  list of `{name, bytes}` so `audio/<id>.wav` can join later: `build()` in `js/ui/savefile.js`). File menu: Save (Ctrl/Cmd+S;
+  the first time asks where, then silent), Save as… (+Shift), Save a copy… (a download, now `.spores`), Open… (Ctrl/Cmd+O;
+  `.spores` and old `.json`, asks first, Undo brings the old song back), Open Recent ▸ (desktop), New song (also forgets the
+  file), Seeds link…, Skin…; shortcuts shown muted; keys work anywhere except in a text field and stop the browser's own
+  Save / Open. Where it writes: desktop = native dialogs + `desktop/files.js` (IPC `spores:file-open/read/save/saveas/recent`,
+  allow-list `desktop/path-allow.js` ported from Thunder Plus, atomic write); Chrome = File System Access with the handle in
+  IndexedDB; otherwise a download. Dirty = song JSON hash differs from the saved one (`js/ui/filestate.js`), so Undo back to
+  the saved state is clean; `{name, path, hash}` in localStorage `spores.file` survives a reload. Shown as "Name • — ...Spores"
+  in the title and a quiet name + dot beside the app name on both screens (`filetag.js`; the File menu itself is still on the
+  Steps screen only). Desktop closing / quitting with unsaved changes asks Save / Don't save / Cancel (Cancel default);
+  Chrome warns on close only when dirty. The song's autosave is unchanged. SPEC "Saving" section, help line, desktop README.
+- **Tested:** `tests/zip-check.mjs` (round trip, python zipfile + `unzip -t`); `tests/save-check.mjs` in headless Chrome
+  (mock picker, real OPFS handle across a reload, no-picker download, Open .spores / .json / three bad files, dot / Undo,
+  shortcuts, header one row at 1280x760 and 1440x830 on both screens, no console errors); `tests/desktop-save-check.js`
+  Electron 33 under xvfb with dialogs stubbed (save / open / recent / allow-list refusals / close and quit prompts);
+  `tests/path-allow.test.js` + updater tests; engine-check passes; cv-ui-check unchanged from before (its fake-input Tune
+  step already fails in this sandbox).
+- **Not tested:** a real Mac (Cmd keys, dock Open Recent / `addRecentDocument`, Cmd+Q), the real native dialog UI, Windows
+  paths, real Chrome picker UI (mocked; the OPFS handle is real), touch, Safari / Firefox fallbacks by hand.
+- **Odd / decisions:** a song opened from an old `.json` becomes "Name.spores" with no file behind it (Save asks where), so the
+  old file is never overwritten. After Undo of an Open the file name stays but the dot shows (the song no longer matches the
+  file). The desktop app's recent list is the allow-list (last 64 kept, newest 8 shown, missing files hidden). Not done
+  (later): double-click a `.spores` to open it, Chrome "Open Recent", a File menu on the Song screen.
+
+## 2026-11-26 — PLAN: Save, audio tracks, export (owner's request; step A done, B and C not started)
 Order: **A Save** (audio can't live in localStorage, so it comes first) → **B audio tracks** → **C export** (needs an
 offline render that already knows audio tracks and the effects from the plan below). 🔴 = engine work (Claude).
 
-**A. Save (File › Save, Cmd/Ctrl+S).** Today: autosave to localStorage + Save a copy… (a download) + Open.
+**A. Save (File › Save, Cmd/Ctrl+S). ✅ DONE 2026-11-26 (see the entry above).** Today: autosave to localStorage + Save a copy… (a download) + Open.
 - Save asks where the first time, then writes the same file silently; Save as… for a new file; Save a copy… stays.
   The title shows the song's file name and a dot while there are unsaved changes; closing the desktop app with unsaved
   changes asks first. Autosave stays, as crash recovery, not as the save.
