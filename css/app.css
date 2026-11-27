@@ -94,7 +94,7 @@ p { margin: 0; }
 .tempo { display: flex; align-items: baseline; gap: 4px; }
 .tempo input { width: 58px; padding: 0 4px; border: 0; background: transparent; text-align: right; font-size: 22px; font-weight: 600;
   -moz-appearance: textfield; appearance: textfield; }
-.hdr select.tempopre { width: 78px; padding: 0 2px; font-size: 13px; }
+.hdr select.tempopre { width: 66px; padding: 0 2px; font-size: 13px; }
 .tempo input:hover, .tempo input:focus { background: var(--panel-2); }
 .tempo input::-webkit-inner-spin-button, .tempo input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .hdr select[aria-label=Key] { min-width: 0; }
@@ -124,7 +124,7 @@ p { margin: 0; }
   scrollbar-width: none; scroll-behavior: smooth; overscroll-behavior-x: contain; }
 .scenes::-webkit-scrollbar { display: none; }
 /* fades over the strip's edges (not a mask: masks on a scroller can draw stale letters) */
-.scenewrap { position: relative; display: flex; min-width: 0; flex: 0 1 auto; }
+.scenewrap { position: relative; display: flex; min-width: 90px; flex: 0 1 auto; }   /* at least two letters show (it scrolls for more); never squeezed under the + */
 .scenewrap::before, .scenewrap::after { content: ''; position: absolute; top: 1px; bottom: 1px; width: 28px; pointer-events: none;
   opacity: 0; transition: opacity .15s; z-index: 1; }
 .scenewrap::before { left: 1px; background: linear-gradient(to right, var(--panel), transparent); }
@@ -314,7 +314,7 @@ p { margin: 0; }
 /* small laptop windows: the Key and Scene captions go (the controls say what they are) so the header stays on one row */
 @media (max-width: 1380px) { .hdr .cap.opt { display: none; } }
 /* laptop windows: the scale list only needs to show its name, so it gives its width back to the header */
-.hdr select[aria-label=Scale] { width: clamp(100px, 9vw, 150px); }
+.hdr select[aria-label=Scale] { width: clamp(84px, 8vw, 150px); }
 /* A laptop window (a 13" MacBook Air is 1440–1470 wide): the track list is too thin for "Closed hat" on one line. The name may
    take two lines instead, and the "Drum · Kick" line goes (the panel shows it for the selected track). Rows keep their
    height, so they still line up with the grid. */
