@@ -42,6 +42,18 @@ offline render that already knows audio tracks and the effects from the plan bel
   from a busy computer); stems = one pass per track with the others muted (simple), or per-track outputs later.
 - Later, if wanted: MP3 / AAC (needs an encoder; not in the no-npm app), loudness-normalised export (…pump?).
 
+**Borrow from Thunder Plus first (read only; line numbers in `thunder-plus/index.html` as of 2026-11-26):**
+- Recording: `rcdSet` / `RCD` / `rcdOpen1` / `rcdLat` (~16667–16770): input pick and channel, monitoring, "sync" mode
+  recording a whole number of patterns, latency correction (output + input latency + a user offset), fit. Desktop
+  audio-in helper: `electron/io-helper.js`, `thunder:io-mic`.
+- Save: desktop IPC `thunder:file-read / file-save / file-open / file-saveas` and export writes `out-pick / out-write /
+  out-show` in `electron/main.js` (~164–213, with `path-allow.js` limiting writes to files the user picked); Chrome
+  `showSaveFilePicker` with download fallback (~15330, ~26518); IndexedDB helpers `idbOpen` (~15124) and `kvDb` (~26550).
+- Files: `crc32` + `zipBlob` (~15287), so the `.spores` bundle needs no new zip code.
+- Export: song renders and stems (Mixer, Master notes ~3213; stems skip the master chain) and its WAV writing.
+Copy and adapt into small Spores files (AGENTS.md: under ~600 lines each, plain-English labels, Spores' look); keep
+credits for anything third-party.
+
 **Questions for the owner before B:** one take per scene (proposed) or one per track for the whole song? Varispeed
 on tempo change OK? Her microphone: the Mac's or an interface? Should she hear herself while recording?
 
