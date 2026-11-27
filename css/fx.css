@@ -1,0 +1,30 @@
+/* css/fx.css: the Effects section of the track panel (js/ui/fxpanel.js). Colours only from the :root tokens. */
+.fxlist { display: flex; flex-direction: column; gap: 10px; margin: 6px 0; }
+.fxcard { border: 1px solid var(--track); background: var(--panel); border-radius: var(--radius); padding: 6px 8px 4px; }
+.fxcard.off .fxbody { opacity: .5; }
+.fxhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--touch); }
+.fxname { font-weight: 600; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.fxsw { min-width: 56px; }
+.fxbtns { display: grid; grid-template-columns: var(--touch) var(--touch) minmax(0, 1fr) var(--touch); gap: 4px; }
+.fxbtns .tb { min-width: 0; padding: 6px 4px; }
+.fxbody { margin-top: 4px; }
+.fxaddrow { margin-top: 4px; }
+.fxadd { width: 100%; }
+.fxcount { margin: 4px 0 0; }
+.fxmenu { margin-top: 6px; max-height: 50vh; overflow: auto; border: 1px solid var(--edge); background: var(--panel); border-radius: var(--radius); padding: 4px; display: flex; flex-direction: column; gap: 2px; }
+.fxmenu[hidden] { display: none; }
+.fxgrp { margin-top: 8px; padding: 0 8px 2px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.fxgrp:first-child { margin-top: 2px; }
+.fxitem { text-align: left; background: transparent; }
+/* the "fx 2" hint in a track row: inside the "Drum · Kick" line on a wide window; on a laptop that line is hidden, so a small line of its own */
+.tfx { display: none; font-size: 11px; line-height: 1; color: var(--muted); }
+@media (max-width: 1520px) {
+  .tfx { display: block; }
+  .track.hasfx .tname { -webkit-line-clamp: 1; }
+}
+.track.audiotrack .tfx { display: none; }
+/* a setting: its name and its value (which can be long: "3 steps · 375 ms") on one line, the slider under them */
+.fxbody .prow:not(.wide) { grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; min-height: 0; }
+.fxbody .prow:not(.wide) .plabel { grid-column: 1; grid-row: 1; align-self: end; }
+.fxbody .prow:not(.wide) .pval { grid-column: 2; grid-row: 1; align-self: end; white-space: nowrap; }
+.fxbody .prow:not(.wide) input[type=range] { grid-column: 1 / -1; grid-row: 2; }

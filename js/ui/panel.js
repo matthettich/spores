@@ -21,6 +21,8 @@ import {el} from './dom.js';
 import {cvSection} from './cv.js';
 import {renameTrack, deleteTrack} from './trackctl.js';
 import {audioSection} from './audiopanel.js';
+import {fxSection} from './fxpanel.js';
+import {canHaveFx} from '../fxedit.js';
 
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV', audio: 'Audio'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -79,6 +81,7 @@ export function mountPanel(root, {store, engine, state, rec, openSong}){
     if (t.type !== 'cv' && t.type !== 'audio' || isSongTrack(t)) volume(t, ti);   // a CV track has no level: its voltages are its notes
     if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
     if (s.mode === 'more' && t.type === 'drum') seedsNote(t, ti);
+    if (canHaveFx(t)){ const f = fxSection(root, {store, t, mode: s.mode}); updaters.push(f.update); disposers.push(f.dispose); }   // js/ui/fxpanel.js
     if (t.type !== 'audio') step(s, t, ti);
     const last = s.tracks.length < 2;
     root.append(el('div', {class: 'pdel'},

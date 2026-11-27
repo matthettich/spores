@@ -2,6 +2,24 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — effects FX2: the Effects panel is done (Claude, on `dev`)
+- **Done:** `js/ui/fxpanel.js` (+ `css/fx.css`), mounted by panel.js as an "Effects" section after Track (drum, synth, loop
+  audio and song-length audio; none for MIDI / CV). "+ Add effect ▾" lists the 34 effects under the 8 groups; at 4 on the
+  track or 32 in the song the button is disabled and the line under it says why ("n of 32 in the song" always shows).
+  Each effect is a card: name, On / Off, ‹ ›, Reset, × (asks "Remove Echo?" Keep it / Remove it; Undo restores it with its
+  settings), then its settings: Simple = the main ones, More = all; values via fxText (Time uses the song's BPM). Sliders
+  merge into one Undo per drag (store 'Effect setting' label); the cards are rebuilt only when the list / order / on-off
+  / mode changes, so a drag is never interrupted. The track row says "fx 2" (in the "Drum · Kick" line on wide windows,
+  a small line of its own on laptops where that line is hidden).
+- **Song-length audio tracks:** their Effects are in the Steps panel (where their Volume already is), not on the Song-screen
+  card. Say if you want them on the card too.
+- **Tested:** tests/fx-ui-check.mjs (all ok at 1280x760 and 1440x830: add Echo → song + worklet, setting + Undo, a real mouse
+  drag = one Undo, on / off, reorder, Reset, remove asks / Keep it / Undo restores, 5th effect refused, 32-in-song message,
+  audio loop + song-length, Simple 3 vs More 6, Save → Open, no MIDI/CV section, header one row, no panel control < 44 px,
+  no console errors; SHOTS=dir writes the panel in all three skins, looked at). fx-check, audio-ui-check,
+  audio-song-ui-check, save-check, engine-check still pass.
+- **Not done:** step 5 (desktop build + release). Plan step 3 is finished.
+
 ## 2026-11-26 — effects FX1: engine + data for up to 4 effects per track done (Claude, on `dev`, pushed)
 - **Done:** `js/engine/tfx.wasm` (unchanged copy of thunder-plus/waves/dsp/tfx.wasm, Thunder 706d70c, md5 99337ee2…;
   refresh: `sh tools/copy-fx.sh /path/to/thunder-plus`, then check fx.js still matches Thunder's TFX table). `js/engine/fx.js`:

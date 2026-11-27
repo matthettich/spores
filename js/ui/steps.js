@@ -292,6 +292,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       if (t.type === 'cv') sub.push(`out ${t.cv.pitch} / ${t.cv.gate}` + (t.cv.cal ? ' · tuned' : ''));
       if (isSongTrack(t)) sub[0] = 'Audio · whole song', sub.push(t.take ? 'has a take' : 'no take yet');
       else if (t.type === 'audio'){ const c = ((s.scenes[state.scene] || {}).clips || {})[t.id]; sub.push(c ? `${c.bars} bar${c.bars === 1 ? '' : 's'}` : 'no take yet'); }
+      if (t.fx && t.fx.length) sub.push('fx ' + t.fx.length);   // js/ui/fxpanel.js
       const mute = el('button', {class: 'mute' + (t.mute ? ' on' : ''), title: 'Mute this track',
         'aria-label': 'Mute ' + (t.name || TYPE[t.type]), 'aria-pressed': t.mute ? 'true' : 'false',
         onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, el('span', {class: 'mbox'}, 'M'));
@@ -300,12 +301,12 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
         onclick: e => { e.stopPropagation(); store.edit('Solo', s2 => { s2.tracks[ti].solo = !s2.tracks[ti].solo; }); }}, el('span', {class: 'mbox'}, 'S'));
       const tname = el('span', {class: 'tname', title: 'Double-click to rename'}, t.name);
       tname.addEventListener('dblclick', e => { e.stopPropagation(); renameTrack(store, t.id); });
-      const row = el('div', {class: 'track' + (t.type === 'audio' ? ' audiotrack' : '') + (ti === state.track ? ' sel' : '') + (anySolo && !t.solo ? ' quiet' : ''), role: 'button', tabindex: '0',
+      const row = el('div', {class: 'track' + (t.type === 'audio' ? ' audiotrack' : '') + (t.fx && t.fx.length ? ' hasfx' : '') + (ti === state.track ? ' sel' : '') + (anySolo && !t.solo ? ' quiet' : ''), role: 'button', tabindex: '0',
         'aria-label': `${t.name} (${TYPE[t.type]})`, 'aria-pressed': ti === state.track ? 'true' : 'false'},
         el('button', {type: 'button', class: 'tbar ' + t.type, style: {'--tcol': trackColour(t)},
           title: 'Change colour', 'aria-label': 'Change colour of ' + t.name,
           onclick: e => { e.stopPropagation(); openColourPicker(store, t.id); }}),
-        el('span', {class: 'tinfo'}, tname, el('span', {class: 'tsub'}, sub.join(' · '))),
+        el('span', {class: 'tinfo'}, tname, el('span', {class: 'tsub'}, sub.join(' · ')), t.fx && t.fx.length ? el('span', {class: 'tfx', title: 'Effects on this track'}, 'fx ' + t.fx.length) : null),
         mute, solo);
       row.addEventListener('click', () => selectTrack(ti));
       // Enter selects; Space is left to play / stop (main.js)
