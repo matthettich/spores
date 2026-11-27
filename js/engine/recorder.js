@@ -25,6 +25,14 @@ export function createRecorder({ctx, node, master, emit}){
     if (m.t === 'level'){ emit('level', {peak: m.peak, rms: m.rms, db: m.peak > 0 ? 20 * Math.log10(m.peak) : -Infinity, clip: m.peak >= 0.999}); return true; }
     if (m.t === 'peek'){ if (peek){ const f = peek; peek = null; f(m); } return true; }
     if (m.t === 'pong'){ if (pong){ const f = pong; pong = null; f(m); } return true; }
+    if (m.t === 'take' && m.kind === 'song'){   // a song-length take: join the worklet's chunks
+      const data = new Float32Array(m.len); let at = 0;
+      for (const c of m.chunks){ const k = Math.min(c.length, m.len - at); if (k <= 0) break; data.set(k < c.length ? c.subarray(0, k) : c, at); at += k; }
+      const take = {id: newClipId(), kind: 'song', trackId: m.trackId, data, sr: m.sr, bpm: m.bpm, startBar: m.startBar, n: m.len};
+      emit('take', take);
+      if (rec){ rec.last = take; try { rec.onTake && rec.onTake(take); } catch (e){ console.error(e); } }
+      return true;
+    }
     if (m.t === 'take'){
       const take = {id: newClipId(), trackId: m.trackId, scene: m.scene, data: m.data, sr: m.sr, bars: m.bars, bpm: m.bpm, n: m.n};
       emit('take', take);
@@ -32,8 +40,11 @@ export function createRecorder({ctx, node, master, emit}){
       return true;
     }
     if (m.t === 'rec'){
+      // (engine.recording is already false when 'done' / 'cancelled' reaches the listeners)
+      const r = rec && (m.state === 'done' || m.state === 'cancelled') ? rec : null;
+      if (r) rec = null;
       emit('rec', m);
-      if (rec && (m.state === 'done' || m.state === 'cancelled')){ const r = rec; rec = null; r.resolve(r.last || null); }
+      if (r) r.resolve(r.last || null);
       return true;
     }
     return false;
@@ -138,10 +149,28 @@ export function createRecorder({ctx, node, master, emit}){
       });
     })();
   }
-  const stopRecording = () => node.port.postMessage({t: 'recstop'});
+  /* Record a song-length take on an audio track with span 'song'. The song plays from block `fromBlock` (0 = the
+     start) after one bar of count-in (whatever was playing stops first); records until stopRecording() / Stop (the
+     take is kept) or the song's end. → Promise of {id, kind: 'song', trackId, data, sr, bpm, startBar, n} (startBar =
+     that block's first song bar, js/songmap.js) or null (stopRecording({discard: true}), or nothing recorded). */
+  function recordSong({track, fromBlock = 0, metronome = false, onTake = null}){
+    if (!inp) return Promise.reject(new Error('Open an input first.'));
+    if (rec) return Promise.reject(new Error('Already recording.'));
+    return (async () => {
+      if (ctx.state !== 'running') await ctx.resume();
+      return new Promise(resolve => {
+        rec = {resolve, onTake, last: null};
+        node.port.postMessage({t: 'record', kind: 'song', trackId: track, block: fromBlock | 0, metronome: !!metronome,
+          lat: Math.round(latency().totalMs / 1000 * ctx.sampleRate)});
+      });
+    })();
+  }
+  // stop recording, the music goes on. A loop take not finished is dropped; a song take ends here and is kept
+  // (discard: true drops it)
+  const stopRecording = ({discard = false} = {}) => node.port.postMessage({t: 'recstop', discard: !!discard});
 
   return {onMessage, api: {
-    peekWorklet, audioInputs, openInput, closeInput, setMonitor, measureLatency, record, stopRecording, setLatencyOffset,
+    peekWorklet, audioInputs, openInput, closeInput, setMonitor, measureLatency, record, recordSong, stopRecording, setLatencyOffset,
     get latency(){ return latency(); },
     get monitor(){ return set.monitor; },
     get recording(){ return !!rec; },

@@ -16,7 +16,9 @@
  *                      {t:'clip', id, data}         a loop take's samples (Float32Array, transferred); {t:'unclip', id} drops one
  *                      {t:'input', on}              the input (inputs[0], channel 0) is connected: send level meter values
  *                      {t:'record', trackId, scene, bars, keep, lat, metronome}   record a loop take (see recordStart)
- *                      {t:'recstop'}                stop recording (a take not finished is dropped); Stop does the same
+ *                      {t:'record', kind:'song', trackId, block, lat, metronome}   record a song-length take (recordSongStart)
+ *                      {t:'recstop', discard}       stop recording: a loop take not finished is dropped (Stop does the
+ *                                                   same); a song take ends here and is kept (unless discard)
  *                      {t:'ping', count, gap}       latency test: bursts every `gap` frames, the input recorded meanwhile
  *                      {t:'peek'}                   → {t:'peek', clips, tapes, recording} (tests)
  * Outputs: 0 = the stereo mix, 1 = CV_CHANNELS of CV (cv.js), sample values, straight to the interface.
@@ -27,11 +29,13 @@
  *                      {t:'rec', state, …}          'count-in' {countTime, startTime, endTime} · 'recording' · 'done' ·
  *                                                   'cancelled' (times = context seconds of the music, not the input)
  *                      {t:'take', trackId, scene, data, sr, bars, bpm, n}   a finished take, already in loop order
+ *                      {t:'take', kind:'song', trackId, chunks, len, sr, bpm, startBar}   a song take (chunks joined = len)
  *                      {t:'pong', data, at}         the latency test's input and the bursts' frames within it
  */
 import {BlipVoice, AcidCore} from './voices.js';
 import {pumpInit, PumpVoice} from './pump.js';
 import {TapeVoice, Clicks, Capture} from './tape.js';
+import {SongTape, SongCapture} from './songtape.js';
 
 const LOOKAHEAD = 0.12;      // seconds: how far ahead a step is decided (MIDI needs this lead)
 const START_DELAY = 0.06;    // seconds between pressing Play and the first step
@@ -65,10 +69,10 @@ class SporesEngine extends AudioWorkletProcessor {
     else if (m.t === 'unclip') this.clips.delete(m.id);
     else if (m.t === 'input'){ this.inputOn = !!m.on; }
     else if (m.t === 'record') this.recordStart(m);
-    else if (m.t === 'recstop') this.recordEnd('cancelled');
+    else if (m.t === 'recstop') this.recordStop(m);
     else if (m.t === 'ping') this.pingStart(m);
     else if (m.t === 'peek') this.port.postMessage({t: 'peek', clips: [...this.clips.keys()],   // (tests / debugging)
-      tapes: Object.fromEntries([...this.tapes].map(([id, v]) => [id, v.cur ? v.cur.id : null])), recording: !!this.rec});
+      songStep: this.songStep, tapes: Object.fromEntries([...this.tapes].map(([id, v]) => [id, v.cur ? v.cur.id : null])), recording: !!this.rec});
     else if (m.t === 'hit'){ const tr = this.song && this.song.tracks[m.ti]; if (tr) this.trigger(m.ti, currentFrame, m.note, m.vel, (m.len || 0.25) * sampleRate); }
   }
 
@@ -79,7 +83,11 @@ class SporesEngine extends AudioWorkletProcessor {
     const keep = new Map();
     for (const tr of this.song.tracks){
       if (tr.type === 'cv'){ keep.set(tr.id, this.voices.get(tr.id) || {engine: 'cv', val: 0, gate: false, note: -1}); continue; }
-      if (tr.type === 'audio'){ if (!this.tapes.has(tr.id)) this.tapes.set(tr.id, new TapeVoice(sampleRate)); continue; }
+      if (tr.type === 'audio'){
+        const K = tr.span === 'song' ? SongTape : TapeVoice, v = this.tapes.get(tr.id);
+        if (!v || v.constructor !== K) this.tapes.set(tr.id, new K(sampleRate));
+        continue;
+      }
       if (tr.type !== 'drum' && tr.type !== 'synth') continue;
       let v = this.voices.get(tr.id);
       const live = v && v.engine === tr.engine;
@@ -114,6 +122,7 @@ class SporesEngine extends AudioWorkletProcessor {
     this.block = Math.max(0, Math.min(s.song.length - 1, m.block | 0)); this.rep = 0;
     this.sceneKey = this.mode === 'song' ? s.song[this.block].scene : (s.scenes[m.scene] ? m.scene : Object.keys(s.scenes)[0]);
     this.pendingScene = null; this.counter = 0; this.global = 0; this.runStep = 0;
+    this.songStep = this.mode === 'song' ? s.song[this.block].start || 0 : 0;   // song steps from bar 0 (song-length takes)
     this.nextFrame = currentFrame + START_DELAY * sampleRate;
     if (m.countIn){   // one bar of clicks first (recording); the scene starts on the bar after
       const beat = 4 * this.stepLen();
@@ -127,7 +136,8 @@ class SporesEngine extends AudioWorkletProcessor {
   stop(){
     if (!this.playing) return;
     this.playing = false;
-    if (this.rec) this.recordEnd('cancelled');
+    if (this.rec && this.rec.kind === 'song') this.rec.cap.finish(currentFrame + this.rec.lat);   // kept: it ends here
+    else if (this.rec) this.recordEnd('cancelled');
     for (const v of this.tapes.values()) v.release();
     this.queue = this.queue.filter(q => !q.on && !q.sync);   // drop notes not yet started; let note-offs through
     for (const [, v] of this.voices){ if (v.synth) v.synth.off(); if (v.pump) v.pump.allOff(); if (v.engine === 'cv') v.gate = false; }
@@ -150,7 +160,13 @@ class SporesEngine extends AudioWorkletProcessor {
       this.counter = 0;
       if (this.mode === 'song'){
         const b = s.song[this.block];
-        if (!(b && b.loop) && ++this.rep >= Math.max(1, b ? b.repeat : 1)){ this.block = (this.block + 1) % s.song.length; this.rep = 0; this.runStep = 0; }
+        if (!(b && b.loop) && ++this.rep >= Math.max(1, b ? b.repeat : 1)){
+          this.block = (this.block + 1) % s.song.length; this.rep = 0; this.runStep = 0;
+          if (this.block === 0){   // the song's end: it starts again from bar 0; a song take being recorded ends here
+            this.songStep = 0;
+            if (this.rec && this.rec.kind === 'song') this.rec.cap.finish(Math.round(this.nextFrame) + this.rec.lat);
+          }
+        }
         this.sceneKey = s.song[this.block].scene; sc = s.scenes[this.sceneKey] || sc;
       }
     }
@@ -167,11 +183,11 @@ class SporesEngine extends AudioWorkletProcessor {
       events.push({ti, idx, note: st.note, vel: st.vel, len: gateLen / sampleRate});
     });
     // audio tracks: where this step falls in each take's loop, on the step's own (unswung) frame
-    if (s.hasAudio) this.queue.push({frame: this.nextFrame, sync: true, scene: this.sceneKey, runStep: this.runStep, stepLen}), this.queue.sort((a, b) => a.frame - b.frame);
+    if (s.hasAudio) this.queue.push({frame: this.nextFrame, sync: true, scene: this.sceneKey, runStep: this.runStep, stepLen, mode: this.mode, songStep: this.songStep}), this.queue.sort((a, b) => a.frame - b.frame);
     const clocks = []; for (let k = 0; k < PPQ_PER_STEP; k++) clocks.push((this.nextFrame + k * stepLen / PPQ_PER_STEP) / sampleRate);
     this.port.postMessage({t: 'step', time: frame / sampleRate, len: stepLen / sampleRate, scene: this.sceneKey, block: this.block,
-      rep: this.rep, counter: this.counter, events, clocks});
-    this.counter++; this.global++; this.runStep++; this.nextFrame += stepLen;
+      rep: this.rep, counter: this.counter, songStep: this.mode === 'song' ? this.songStep : null, events, clocks});
+    this.counter++; this.global++; this.runStep++; this.songStep++; this.nextFrame += stepLen;
   }
 
   // queue a note on (and off) at an exact sample. MIDI and CV tracks make no sound here. A drum's note is its sound's
@@ -215,6 +231,11 @@ class SporesEngine extends AudioWorkletProcessor {
     const late = Math.max(0, currentFrame + off - q.frame);
     s.tracks.forEach((tr, ti) => {
       const v = this.tapes.get(tr.id); if (!v) return;
+      if (tr.span === 'song'){   // song-length take: song mode only (silent in scene mode)
+        if (q.mode !== 'song') return v.release();
+        const k = tr.take;
+        return v.sync(k, k ? this.clips.get(k.id) : null, q.songStep, q.stepLen, late, this.tapeLevel(tr, s.tracks.some(t => t.solo)));
+      }
       const c = sc.clips && sc.clips[ti];
       v.sync(c, c ? this.clips.get(c.id) : null, q.runStep, q.stepLen, late, this.tapeLevel(tr, s.tracks.some(t => t.solo)));
     });
@@ -230,6 +251,9 @@ class SporesEngine extends AudioWorkletProcessor {
      turned round so its first sample is the loop's start. The input is captured `lat` frames later than the music
      (output + input latency: what she sang along to was heard that much earlier). keep: the next take follows on at once. */
   recordStart(m){
+    if (m.kind === 'song') return this.recordSongStart(m);
+    const tr = this.song && this.song.tracks.find(t => t.id === m.trackId);
+    if (tr && tr.span === 'song'){ this.port.postMessage({t: 'rec', state: 'cancelled', why: 'a song-length track'}); return; }
     if (!this.song || !this.song.scenes[m.scene]){ this.port.postMessage({t: 'rec', state: 'cancelled', why: 'no such scene'}); return; }
     if (this.rec) this.recordEnd('cancelled');
     const bars = [1, 2, 4, 8].includes(m.bars) ? m.bars : 1, S = bars * 16;
@@ -254,10 +278,40 @@ class SporesEngine extends AudioWorkletProcessor {
     this.rec = null; this.clicks.list = this.clicks.list.filter(c => c.kind === 'burst');
     this.port.postMessage({t: 'rec', state});
   }
+  /* Record a song-length take (engine.js recordSong()): the song starts from block `block` after one bar of count-in
+     (whatever was playing stops), and the input is captured from that block's first sample (+ lat, as loop takes)
+     until Stop / recstop (kept) or the song's end (the block after the last). startBar = that block's first song bar. */
+  recordSongStart(m){
+    const s = this.song;
+    if (!s || !s.song.length){ this.port.postMessage({t: 'rec', state: 'cancelled', why: 'no song blocks'}); return; }
+    if (this.rec) this.recordEnd('cancelled');
+    if (this.playing) this.stop();
+    const block = Math.max(0, Math.min(s.song.length - 1, m.block | 0));
+    this.start({mode: 'song', block, countIn: true});
+    const st = this.stepLen(), recFrame = this.nextFrame, lat = Math.round(m.lat || 0), first = s.song[block].start || 0;
+    const loops = s.song.slice(block).some(b => b.loop);
+    this.rec = {kind: 'song', trackId: m.trackId, block, startBar: Math.round(first / 16), bpm: s.bpm, lat,
+      cap: new SongCapture(Math.round(recFrame) + lat, sampleRate), musicStart: recFrame, n: 0, metro: !!m.metronome,
+      beat: 4 * st, nextBeat: recFrame, said: false};
+    this.port.postMessage({t: 'rec', state: 'count-in', kind: 'song', countTime: (recFrame - 16 * st) / sampleRate, startTime: recFrame / sampleRate,
+      endTime: loops ? null : (recFrame + (s.songSteps - first) * st) / sampleRate, trackId: m.trackId, block, startBar: this.rec.startBar});
+  }
+  recordStop(m){
+    const r = this.rec;
+    if (r && r.kind === 'song' && !m.discard) r.cap.finish(currentFrame + r.lat);
+    else this.recordEnd('cancelled');
+  }
   recordFeed(input, f0, n){
     const r = this.rec;
     if (!r.said && f0 + n > r.musicStart){ r.said = true; this.port.postMessage({t: 'rec', state: 'recording', n: r.n}); }
     if (r.metro) while (r.nextBeat < f0 + n){ if (r.nextBeat >= f0) this.clicks.add(r.nextBeat, 'click'); r.nextBeat += r.beat; }
+    if (r.kind === 'song'){
+      if (!r.cap.feed(input, f0, n)) return;
+      const c = r.cap, chunks = c.chunks.slice(0, Math.ceil(c.len / c.size));
+      this.port.postMessage({t: 'take', kind: 'song', trackId: r.trackId, chunks, len: c.len, sr: sampleRate, bpm: r.bpm, startBar: r.startBar, n: 0},
+        chunks.map(x => x.buffer));
+      return this.recordEnd('done');
+    }
     if (!r.cap.feed(input, f0, n)) return;
     // full: in loop order (sample j of the capture is loop position rot + j), sent off; then the next take or the end
     const d = r.cap.buf, out = r.rot ? new Float32Array(r.len) : d;

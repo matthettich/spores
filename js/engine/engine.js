@@ -18,6 +18,7 @@ import {cvValue, gateValue, DEFAULT_FS, CV_CHANNELS} from './cv.js';
 import {createRecorder} from './recorder.js';
 import {getClip} from '../audiostore.js';
 import {clipIds} from '../store.js';
+import {songMap} from '../songmap.js';
 
 export const STEPS_PER_BAR = 16;
 
@@ -29,6 +30,11 @@ export function compile(song, opts = {}){
     if (t.type === 'drum' || t.type === 'synth'){
       const r = resolve(t.sound, t.params);
       o.engine = r.engine; o.vals = r.vals; o.rendered = !!ENGINES[r.engine].rendered; if (r.note != null) o.drumNote = r.note;
+    }
+    if (t.type === 'audio' && t.span === 'song'){   // song-length take (songtape.js)
+      o.span = 'song'; const k = t.take;
+      o.take = k && k.id ? {id: k.id, sr: k.sr || 48000, bpm: k.bpm || 120, startBar: Math.max(0, k.startBar | 0), gain: k.gain ?? 1,
+        fadeIn: k.fadeIn || 0, fadeOut: k.fadeOut || 0, trimStart: k.trimStart || 0, trimEnd: k.trimEnd || 0} : null;
     }
     if (t.type === 'cv'){ const cv = t.cv || {}; o.cvPitch = (cv.pitch | 0) - 1; o.cvGate = (cv.gate | 0) - 1; o.gateV = gateValue(fs); }
     return o;
@@ -47,15 +53,17 @@ export function compile(song, opts = {}){
       }
       return out;
     }), clips: song.tracks.map(t => {
-      const c = t.type === 'audio' && sc.clips && sc.clips[t.id];
+      const c = t.type === 'audio' && t.span !== 'song' && sc.clips && sc.clips[t.id];
       return c && c.id ? {id: c.id, bars: c.bars || 1, sr: c.sr || 48000, gain: c.gain ?? 1, offset: c.offset || 0,
         fadeIn: c.fadeIn || 0, fadeOut: c.fadeOut || 0, reverse: !!c.reverse} : null;
     })};
   }
   if (!Object.keys(scenes).length) scenes.A = {len: 16, steps: tracks.map(() => new Array(16).fill(null)), clips: tracks.map(() => null)};
-  const order = (song.song || []).filter(b => scenes[b.scene]).map(b => ({scene: b.scene, repeat: Math.max(1, b.repeat | 0), loop: !!b.loop}));
+  // blocks in play order; start = the block's first song step (songmap.js: song bars × 16), for song-length takes
+  const map = songMap(song);
+  const order = map.blocks.map(b => ({scene: b.scene, repeat: b.repeat, loop: b.loop, start: b.startBar * STEPS_PER_BAR}));
   return {bpm: song.bpm || 120, swing: song.mode === 'more' ? (song.swing || 0) : 0, tracks, scenes, song: order,
-    hasAudio: tracks.some(t => t.type === 'audio')};
+    songSteps: map.totalBars * STEPS_PER_BAR, hasAudio: tracks.some(t => t.type === 'audio')};
 }
 
 export async function createEngine(){
