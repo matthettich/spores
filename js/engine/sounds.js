@@ -59,7 +59,12 @@ const add = (name, engine, vals, extra) => { SOUNDS[name] = Object.assign({engin
 for (const [n, v] of Object.entries(DRUMS)) add(n, 'blip', v);
 BOING_DRUMS.forEach(([d, n], i) => add('Boing ' + n.toLowerCase(), 'boing', {}, {drum: d, note: 48 + [0, 2, 4, 5, 7, 9, 11, 12][i]}));
 for (const [n, v] of Object.entries(SYNTHS)) add(n, 'acid', v);
-for (const k of ['coil', 'orbit', 'fold']) for (const [n, v] of PUMP[k].pre) add(PUMP[k].name.charAt(0) + PUMP[k].name.slice(1).toLowerCase() + ' · ' + n, k, v);
+/* A step's note lasts half a step (~60 ms at 120 BPM), so a pad preset with a slow fade-in (Fold's rise, Orbit's
+   attack: 0.6–1.5 s in pump) ends before it is heard — Folded drone measured −60 dB, Drifting complex −42 dB, Thomas
+   pad −28 dB. Spores' copy of those presets starts faster (the long fall / release tails stay); More can slow it again. */
+const FAST_IN = {fold: 'rise', orbit: 'attack'}, FAST_MS = 60;
+const quick = (k, v) => FAST_IN[k] && v[FAST_IN[k]] > FAST_MS ? Object.assign({}, v, {[FAST_IN[k]]: FAST_MS}) : v;
+for (const k of ['coil', 'orbit', 'fold']) for (const [n, v] of PUMP[k].pre) add(PUMP[k].name.charAt(0) + PUMP[k].name.slice(1).toLowerCase() + ' · ' + n, k, quick(k, v));
 for (const k of ['modal', 'scanned']) for (const [n, v] of RENDERED[k].pre) add(ENGINES[k].label.split(' ')[0] + ' · ' + (n === 'Init' ? 'Default' : n), k, v);
 
 export const DRUM_NAMES = Object.keys(SOUNDS).filter(n => SOUNDS[n].kind === 'drum');

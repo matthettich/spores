@@ -2,6 +2,16 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — every sound checked live; three slow pads fixed (Claude)
+- **Checked:** all 153 sounds played live (real-time AudioContext, peak at the output, new `tests/live-sounds-check.mjs`).
+  Since FX1's fix (wasm bytes, not a compiled Module, posted to the worklet) Coil / Orbit / Fold / Boing all sound live;
+  in v0.2.0 and earlier they were silent live in Chrome 153.
+- **Fixed:** Fold · Folded drone (−60 dB), Fold · Drifting complex (−42 dB) and Orbit · Thomas pad (−28 dB) never got
+  loud: their 0.6–1.5 s fade-in (Fold `rise`, Orbit `attack`) is longer than a step's note (half a step). `js/engine/sounds.js`
+  caps those at 60 ms in Spores' copy of the presets; tails unchanged, More can slow it again. Now 0.39–0.62 peak.
+- **Tested:** live sweep 153/153 above 0.13 peak, no errors; sounds-check unchanged. Not tested: real speakers / a Mac.
+- **Later (owner):** a held / tied note (longer gate) would let real pads and drones keep their slow fade-in.
+
 ## 2026-11-26 — export C: File › Export… done, engine + UI + desktop (Claude, on `dev`, pushed)
 - **Done:** File › Export… (Steps screen File menu + the desktop app's native File menu): **Song** (the arrangement once),
   **Scene** (the Steps screen's scene, or another, × 1–64, default 4, remembered for the page), **Stems** (a `.zip`: folder
