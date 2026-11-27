@@ -6,6 +6,8 @@
  *   track.oct        root octave of a Synth / MIDI / CV track (MIDI octave: 2 = C2 = note 36). Default 3.
  *   track.len        per-track length in steps (More mode). 0 / missing = the scene's length.
  *   track.midi.clock send MIDI clock + Start / Stop to this MIDI track's port.
+ *   v2 (audio tracks): track.type 'audio' (≤ MAX_AUDIO_TRACKS), and scene.clips = {trackId: clip}, one loop take per
+ *                    audio track per scene (newClip below). The samples are not in the song: js/audiostore.js.
  *   track.params     {setting: value} over the sound's own values (drum / synth). Settings and their ranges:
  *                    settingsFor(track.sound) in js/engine/sounds.js. Clear it when the sound changes.
  *
@@ -17,10 +19,12 @@ import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
 
 // a track's chosen colour (none = by type: drums pink, synths teal…); the colours are --tc-<key> on :root
 export const TRACK_COLOURS = ['pink', 'orange', 'mustard', 'green', 'teal', 'blue', 'purple', 'grey'];
-export const VERSION = 1, MAX_TRACKS = 16, SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
+export const VERSION = 2, MAX_TRACKS = 16, MAX_AUDIO_TRACKS = 4, CLIP_BARS = [1, 2, 4, 8], SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
 const HISTORY = 80, MERGE_MS = 600;
 const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing', 'Step velocity', 'Step chance']);
-const TYPES = ['drum', 'synth', 'midi', 'cv'];
+const TYPES = ['drum', 'synth', 'midi', 'cv', 'audio'];
+// a new loop take's playback settings (seconds for offset and fades; a few ms of fade keeps the loop seam from clicking)
+export const CLIP_DEFAULTS = {gain: 1, offset: 0, fadeIn: 0.004, fadeOut: 0.004, reverse: false};
 
 // GM drum notes, so a drum track's seedsNote is something sensible in Seeds and in any drum machine
 const GM = {'Kick': 36, 'Boom kick': 35, 'Snare': 38, 'Clap': 39, 'Closed hat': 42, 'Open hat': 46, 'Tom': 45, 'Rim': 37,
@@ -30,9 +34,36 @@ let nextId = 1;
 export function newTrack(type = 'drum', sound, name){
   const id = 't' + Date.now().toString(36) + (nextId++);
   sound = sound || (type === 'drum' ? 'Kick' : type === 'synth' ? 'Acid bass' : '');
-  return {id, name: name || sound || (type === 'midi' ? 'MIDI' : 'CV'), type, sound,
+  return {id, name: name || sound || (type === 'midi' ? 'MIDI' : type === 'audio' ? 'Voice' : 'CV'), type, sound,
     midi: {port: '', ch: 1, clock: false}, cv: {pitch: 3, gate: 4, cal: null},
     params: {}, seedsNote: GM[sound] ?? 36, oct: type === 'drum' ? 3 : 2, vol: 0.8, mute: false, solo: false};
+}
+
+// may another audio track be added? (MAX_AUDIO_TRACKS of the MAX_TRACKS)
+export const canAddAudio = song => song.tracks.length < MAX_TRACKS && song.tracks.filter(t => t.type === 'audio').length < MAX_AUDIO_TRACKS;
+
+/* A loop take, as stored in scene.clips[trackId] (the samples themselves live in js/audiostore.js under `id`, and in a
+   .spores file as audio/<id>.wav). bars: 1 | 2 | 4 | 8, the loop's length at any tempo; bpm and sr: what it was
+   recorded at (another song tempo plays it faster or slower: varispeed, pitch moves); gain (1 = as recorded); offset
+   (seconds, + starts later in the take); fadeIn / fadeOut (seconds, at the loop's start and end); reverse. */
+export function newClip({id, bars, bpm, sr}, extra = {}){
+  return Object.assign({id, bars, bpm, sr}, CLIP_DEFAULTS, extra);
+}
+export const newClipId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+// every clip id the song refers to (Save writes these; the engine loads these)
+export function clipIds(song){
+  const ids = new Set();
+  for (const sc of Object.values(song.scenes || {})) for (const c of Object.values(sc.clips || {})) if (c && c.id) ids.add(c.id);
+  return ids;
+}
+
+const num = (x, d, lo, hi) => typeof x === 'number' && isFinite(x) ? Math.max(lo, Math.min(hi, x)) : d;
+function fixClip(c){
+  if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !/^[\w-]{1,64}$/.test(c.id)) return null;
+  return {id: c.id, bars: CLIP_BARS.includes(c.bars) ? c.bars : 1, bpm: num(c.bpm, 120, 20, 300), sr: num(c.sr, 48000, 8000, 192000),
+    gain: num(c.gain, 1, 0, 4), offset: num(c.offset, 0, -60, 60), fadeIn: num(c.fadeIn, CLIP_DEFAULTS.fadeIn, 0, 10),
+    fadeOut: num(c.fadeOut, CLIP_DEFAULTS.fadeOut, 0, 10), reverse: !!c.reverse};
 }
 
 export function newSong(){
@@ -42,7 +73,7 @@ export function newSong(){
   ];
   tracks[7].oct = 4;
   return {v: VERSION, bpm: 120, swing: 0, key: 'C', scale: 'minor', lock: true, tracks,
-    scenes: {A: {name: 'Scene A', bars: 1, steps: {}}}, song: [{scene: 'A', repeat: 4}],
+    scenes: {A: {name: 'Scene A', bars: 1, steps: {}, clips: {}}}, song: [{scene: 'A', repeat: 4}],
     presets: [], link: {seedsPort: '', seedsCh: 16, clock: true}, mode: 'simple'};
 }
 
@@ -54,7 +85,7 @@ export function demoSong(){
     const id = s.tracks[ti].id, lane = sc.steps[id] = sc.steps[id] || [];
     for (const i of steps) lane[i] = Object.assign({on: true, deg: 0, vel: 100, chance: 100}, typeof extra === 'function' ? extra(i) : extra);
   };
-  const A = s.scenes.A, B = (s.scenes.B = {name: 'Chorus', bars: 1, steps: {}});
+  const A = s.scenes.A, B = (s.scenes.B = {name: 'Chorus', bars: 1, steps: {}, clips: {}});
   const drums = sc => { put(sc, 0, [0, 4, 8, 12]); put(sc, 1, [4, 12]); put(sc, 3, [2, 6, 10, 14]); put(sc, 4, [7, 15], {vel: 80}); };
   drums(A);
   const bassA = [0, 0, 7, 0, 3, 0, 5, 4, 0, 0, 7, 0, 2, 3, 4, 7];
@@ -89,17 +120,23 @@ export function migrate(input){
   const s = unwrap(input);
   if (!s || typeof s !== 'object') return newSong();
   s.v = s.v || 1;
-  // (v1 is the first format; future: if (s.v === 1){ …; s.v = 2; })
+  // v1 → v2 (2026-11-26): audio tracks; a scene may hold one loop take per audio track in scene.clips (none before)
+  if (s.v === 1){ for (const sc of Object.values(s.scenes && typeof s.scenes === 'object' ? s.scenes : {})) if (sc && typeof sc === 'object') sc.clips = {}; s.v = 2; }
   const base = newSong();
   for (const k of ['bpm', 'swing', 'key', 'scale', 'lock', 'mode']) if (s[k] === undefined) s[k] = base[k];
   s.tracks = Array.isArray(s.tracks) && s.tracks.length ? s.tracks.slice(0, MAX_TRACKS) : base.tracks;
   s.tracks.forEach(fixTrack);
+  const audioIds = new Set(s.tracks.filter(t => t.type === 'audio').map(t => t.id));
   const scenes = {};
   for (const [k, sc] of Object.entries(s.scenes && typeof s.scenes === 'object' ? s.scenes : {})){
     if (!SCENES.includes(k) || !sc || typeof sc !== 'object') continue;
     scenes[k] = {name: typeof sc.name === 'string' && sc.name ? sc.name : 'Scene ' + k,
       bars: Math.max(1, Math.min(4, sc.bars | 0 || 1)),
-      steps: sc.steps && typeof sc.steps === 'object' ? sc.steps : {}};
+      steps: sc.steps && typeof sc.steps === 'object' ? sc.steps : {}, clips: {}};
+    // loop takes: only for audio tracks that exist (a deleted track's take goes with it; Undo brings both back)
+    for (const [tid, c] of Object.entries(sc.clips && typeof sc.clips === 'object' ? sc.clips : {})){
+      const f = audioIds.has(tid) && fixClip(c); if (f) scenes[k].clips[tid] = f;
+    }
   }
   s.scenes = Object.keys(scenes).length ? scenes : base.scenes;
   s.song = Array.isArray(s.song) ? s.song : base.song;
@@ -117,7 +154,7 @@ function fixTrack(t){
   if (!TYPES.includes(t.type)) t.type = 'drum';
   if ((t.type === 'drum' || t.type === 'synth') && (typeof t.sound !== 'string' || !t.sound))
     t.sound = t.type === 'drum' ? 'Kick' : 'Acid bass';
-  if (!t.name) t.name = t.sound || (t.type === 'midi' ? 'MIDI' : t.type === 'cv' ? 'CV' : 'Track');
+  if (!t.name) t.name = t.sound || (t.type === 'midi' ? 'MIDI' : t.type === 'cv' ? 'CV' : t.type === 'audio' ? 'Voice' : 'Track');
   t.midi = Object.assign({port: '', ch: 1, clock: false}, t.midi && typeof t.midi === 'object' ? t.midi : {});
   t.cv = Object.assign({pitch: 3, gate: 4, cal: null}, t.cv && typeof t.cv === 'object' ? t.cv : {});
   t.params = t.params && typeof t.params === 'object' && !Array.isArray(t.params) ? t.params : {};

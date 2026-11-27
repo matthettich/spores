@@ -6,7 +6,7 @@ import {openDialog} from './dialog.js';
 import {TRACK_COLOURS} from '../store.js';
 
 const NAMES = {pink: 'Pink', orange: 'Orange', mustard: 'Mustard', green: 'Green', teal: 'Teal', blue: 'Blue', purple: 'Purple', grey: 'Grey'};
-const TYPE_VAR = {drum: 'var(--gate)', synth: 'var(--audio)', midi: 'var(--video)', cv: 'var(--mod)'};
+const TYPE_VAR = {drum: 'var(--gate)', synth: 'var(--audio)', midi: 'var(--video)', cv: 'var(--mod)', audio: 'var(--audio)'};
 
 // the CSS colour a track shows: its chosen colour, or its type's
 export const trackColour = t => t.color ? `var(--tc-${t.color})` : (TYPE_VAR[t.type] || 'var(--gate)');
