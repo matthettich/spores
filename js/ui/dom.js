@@ -9,7 +9,7 @@ export function el(tag, props, ...kids){
     if (k === 'class') n.className = v;
     else if (k === 'text') n.textContent = v;
     else if (k === 'html') n.innerHTML = v;
-    else if (k === 'style') Object.assign(n.style, v);
+    else if (k === 'style') for (const [sk, sv] of Object.entries(v)) sk.startsWith('--') ? n.style.setProperty(sk, sv) : (n.style[sk] = sv);   // --vars too
     else if (k.startsWith('on') && typeof v === 'function') n.addEventListener(k.slice(2), v);
     else n.setAttribute(k, v === true ? '' : v);
   }

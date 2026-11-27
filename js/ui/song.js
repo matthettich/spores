@@ -28,8 +28,10 @@ export function mountSong(root, {store, engine, openSteps}){
     store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); });
     bpm.value = store.get().bpm;   // a typed 999 or a blank shows the tempo that is really playing
   });
-  const undoBtn = el('button', {class: 'tb quiet', title: 'Undo', onclick: () => store.undo()}, 'Undo');
-  const redoBtn = el('button', {class: 'tb quiet', title: 'Redo', onclick: () => store.redo()}, 'Redo');
+  const undoBtn = el('button', {class: 'tb quiet', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => store.undo()},
+    el('span', {class: 'ico'}, '↶'), el('span', {class: 'lbl'}, 'Undo'));
+  const redoBtn = el('button', {class: 'tb quiet', title: 'Redo (Shift+Ctrl+Z)', 'aria-label': 'Redo', onclick: () => store.redo()},
+    el('span', {class: 'ico'}, '↷'), el('span', {class: 'lbl'}, 'Redo'));
 
   // the same left side as the Steps screen (js/ui/steps.js): name, Steps | Song, then Play and the tempo
   const header = el('header', {class: 'hdr'},

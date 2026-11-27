@@ -10,6 +10,7 @@
  * The panel is rebuilt only when the selection, the sound or the mode changes; otherwise values update in place, so
  * dragging a slider is not interrupted.
  */
+import {trackColour, openColourPicker} from './trackcolor.js';
 import {ENGINES, SOUNDS, settingsFor} from '../engine/sounds.js';
 import {degToMidi, midiName} from '../scale.js';
 import {nudgeNote, setChance, setVelocity, stepAt} from './stepedit.js';
@@ -42,7 +43,7 @@ export function mountPanel(root, {store, engine, state}){
     const ti = Math.max(0, Math.min(state.track, s.tracks.length - 1));
     state.track = ti;
     const t = s.tracks[ti];
-    const next = [ti, t.id, t.name, s.tracks.length, t.type, t.sound || '', s.mode, state.step, state.scene].join('|');
+    const next = [ti, t.id, t.name, t.color || '', s.tracks.length, t.type, t.sound || '', s.mode, state.step, state.scene].join('|');
     if (next !== sig){ sig = next; build(s, t, ti); return; }
     for (const f of updaters) f(s, t);
   }
@@ -109,9 +110,11 @@ export function mountPanel(root, {store, engine, state}){
 
     root.append(
       el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Presets'), sel),
-      el('div', {class: 'sndrow'},
-        el('button', {class: 'tb', onclick: () => savePreset(t, ti)}, 'Save this sound'),
-        removeBtn));
+      // the buttons sit in the dropdown's column, edge to edge with it
+      el('div', {class: 'prow wide'}, el('span'),
+        el('div', {class: 'pbtns'},
+          el('button', {class: 'tb', title: 'Save this sound as a preset', onclick: () => savePreset(t, ti)}, 'Save…'),
+          removeBtn)));
   }
 
   function savePreset(t, ti){
@@ -280,7 +283,10 @@ export function mountPanel(root, {store, engine, state}){
       if (document.activeElement !== inp) inp.value = v;
     });
     root.append(el('div', {class: 'psec'}, 'Track'),
-      el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Volume'), inp, val));
+      el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Volume'), inp, val),
+      el('div', {class: 'prow wide'}, el('span', {class: 'plabel'}, 'Colour'),
+        el('button', {class: 'tb tcbtn', title: 'Change the track colour', onclick: () => openColourPicker(store, t.id)},
+          el('span', {class: 'tcdot', style: {background: trackColour(t)}}), t.color ? t.color[0].toUpperCase() + t.color.slice(1) : 'Automatic')));
   }
 
   // More only: how many steps this track plays before it starts again (0 = the scene's length)

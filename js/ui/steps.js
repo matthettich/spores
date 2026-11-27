@@ -9,6 +9,7 @@ import {STEPS_PER_BAR} from '../engine/engine.js';
 import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js';
 import {renameTrack} from './trackctl.js';
 import {SCENES, MAX_TRACKS, SOUND_LISTS, newTrack} from '../store.js';
+import {trackColour, openColourPicker} from './trackcolor.js';
 import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
 import {openHelp} from './help.js';
@@ -42,11 +43,28 @@ export function mountSteps(root, {store, engine, midi, openSong}){
   const lockBtn = el('button', {class: 'tb', hidden: true, title: 'Keep notes in this key', 'aria-pressed': 'true',
     onclick: () => store.edit('Key lock', s => { s.lock = !s.lock; })}, 'Lock');
 
+  // Scene letters scroll sideways (up to 26 scenes, A–Z) so the top bar stays one row; "+" stays outside the strip.
   const scenesEl = el('div', {class: 'scenes seg', role: 'group', 'aria-label': 'Scenes'});
+  const addSceneBtn = el('button', {class: 'tb scn addscn', title: 'Add a scene', 'aria-label': 'Add a scene', onclick: () => addScene()}, '+');
+  // fades at the edges show there are more letters that way (Mac hides scrollbars); a mouse wheel scrolls sideways
+  const sceneWrap = el('div', {class: 'scenewrap'}, scenesEl);
+  const sceneFades = () => {
+    const l = scenesEl.scrollLeft, max = scenesEl.scrollWidth - scenesEl.clientWidth;
+    sceneWrap.classList.toggle('more-l', l > 1);
+    sceneWrap.classList.toggle('more-r', l < max - 1);
+  };
+  scenesEl.addEventListener('scroll', sceneFades, {passive: true});
+  scenesEl.addEventListener('wheel', e => {
+    if (scenesEl.scrollWidth <= scenesEl.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    e.preventDefault(); scenesEl.scrollLeft += e.deltaY;
+  }, {passive: false});
+  window.addEventListener('resize', () => sceneFades());
   const simpleBtn = el('button', {class: 'tb', onclick: () => setMode('simple')}, 'Simple');
   const moreBtn = el('button', {class: 'tb', onclick: () => setMode('more')}, 'More');
-  const undoBtn = el('button', {class: 'tb quiet', title: 'Undo', onclick: () => store.undo()}, 'Undo');
-  const redoBtn = el('button', {class: 'tb quiet', title: 'Redo', onclick: () => store.redo()}, 'Redo');
+  const undoBtn = el('button', {class: 'tb quiet', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => store.undo()},
+    el('span', {class: 'ico'}, '↶'), el('span', {class: 'lbl'}, 'Undo'));
+  const redoBtn = el('button', {class: 'tb quiet', title: 'Redo (Shift+Ctrl+Z)', 'aria-label': 'Redo', onclick: () => store.redo()},
+    el('span', {class: 'ico'}, '↷'), el('span', {class: 'lbl'}, 'Redo'));
   const fileWrap = el('div', {class: 'menu-wrap'});
 
   // More only: swing (every second 16th comes late)
@@ -67,7 +85,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
       el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Arrange the scenes into a song', onclick: () => openSong()}, 'Song')),
     el('div', {class: 'hgroup'}, playBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
     el('div', {class: 'hgroup'}, el('span', {class: 'cap opt'}, 'Key'), keySel, scaleSel, lockBtn),
-    el('div', {class: 'hgroup'}, el('span', {class: 'cap opt'}, 'Scene'), scenesEl),
+    el('div', {class: 'hgroup scenegrp'}, el('span', {class: 'cap opt'}, 'Scene'), sceneWrap, addSceneBtn),
     el('span', {class: 'hspace'}),
     el('div', {class: 'hgroup'}, undoBtn, redoBtn),
     fileWrap,
@@ -227,8 +245,13 @@ export function mountSteps(root, {store, engine, midi, openSong}){
       scenesEl.append(el('button', {class: 'tb scn' + (k === state.scene ? ' on' : ''), 'aria-pressed': k === state.scene ? 'true' : 'false',
         title: s.scenes[k].name || 'Scene ' + k, onclick: () => goScene(k)}, k));
     }
-    if (SCENES.some(k => !s.scenes[k]))
-      scenesEl.append(el('button', {class: 'tb scn', title: 'Add a scene', 'aria-label': 'Add a scene', onclick: addScene}, '+'));
+    addSceneBtn.hidden = !SCENES.some(k => !s.scenes[k]);
+    // keep the scene being edited in view, then update the edge fades
+    requestAnimationFrame(() => {
+      const on = scenesEl.querySelector('.on');
+      if (on) on.scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'instant'});
+      sceneFades();
+    });
   }
 
   // the name of a MIDI port, even after a reload changed its id (js/midi.js looks ports up by id, then by name)
@@ -252,11 +275,14 @@ export function mountSteps(root, {store, engine, midi, openSong}){
       tname.addEventListener('dblclick', e => { e.stopPropagation(); renameTrack(store, t.id); });
       const row = el('div', {class: 'track' + (ti === state.track ? ' sel' : '') + (anySolo && !t.solo ? ' quiet' : ''), role: 'button', tabindex: '0',
         'aria-label': `${t.name} (${TYPE[t.type]})`, 'aria-pressed': ti === state.track ? 'true' : 'false'},
-        el('span', {class: 'tbar ' + t.type}),
+        el('button', {type: 'button', class: 'tbar ' + t.type, style: {'--tcol': trackColour(t)},
+          title: 'Change colour', 'aria-label': 'Change colour of ' + t.name,
+          onclick: e => { e.stopPropagation(); openColourPicker(store, t.id); }}),
         el('span', {class: 'tinfo'}, tname, el('span', {class: 'tsub'}, sub.join(' · '))),
         mute, solo);
       row.addEventListener('click', () => selectTrack(ti));
-      row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectTrack(ti); } });
+      // Enter selects; Space is left to play / stop (main.js)
+      row.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target === row){ e.preventDefault(); selectTrack(ti); } });
       tracksEl.append(row);
     });
   }
@@ -265,7 +291,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
 
   function gridStructure(s){
     const sc = s.scenes[state.scene] || {};
-    return [state.scene, sc.bars || 1, s.mode, s.key, s.scale, s.tracks.map(t => t.id + t.type).join(',')].join('|');
+    return [state.scene, sc.bars || 1, s.mode, s.key, s.scale, s.tracks.map(t => t.id + t.type + (t.color || '')).join(',')].join('|');
   }
 
   function drawGrid(s = store.get()){
@@ -278,6 +304,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
     gridEl.innerHTML = ''; cells = [];
     s.tracks.forEach((t, ti) => {
       const lane = el('div', {class: 'lane ' + t.type});
+      if (t.color) lane.style.setProperty('--rowc', trackColour(t));   // drum steps take the chosen colour
       const rc = [];
       for (let i = 0; i < len; i++){
         const b = el('button', {type: 'button', 'aria-label': `Step ${i + 1}`});

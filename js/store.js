@@ -15,7 +15,9 @@
  */
 import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
 
-export const VERSION = 1, MAX_TRACKS = 16, SCENES = 'ABCDEFGH'.split(''), STORAGE_KEY = 'spores.song';
+// a track's chosen colour (none = by type: drums pink, synths teal…); the colours are --tc-<key> on :root
+export const TRACK_COLOURS = ['pink', 'orange', 'mustard', 'green', 'teal', 'blue', 'purple', 'grey'];
+export const VERSION = 1, MAX_TRACKS = 16, SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
 const HISTORY = 80, MERGE_MS = 600;
 const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing', 'Step velocity', 'Step chance']);
 const TYPES = ['drum', 'synth', 'midi', 'cv'];
@@ -122,6 +124,7 @@ function fixTrack(t){
   if (typeof t.vol !== 'number' || !isFinite(t.vol)) t.vol = 0.8;
   if (typeof t.oct !== 'number') t.oct = 3;
   if (typeof t.len !== 'number') t.len = 0;
+  if (t.color !== undefined && !TRACK_COLOURS.includes(t.color)) delete t.color;   // optional; old songs have none
   if (typeof t.seedsNote !== 'number') t.seedsNote = GM[t.sound] ?? 36;
   t.mute = !!t.mute; t.solo = !!t.solo;
 }
