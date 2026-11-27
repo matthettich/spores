@@ -912,3 +912,9 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
   it squashed the open list (.fxmenu) to a ~10 px sliver below the button. Now `.panel > *` and `.fxmenu` don't shrink, and
   the list scrolls into view when it opens. Tested in the Electron app (1440×873 window, real mouse clicks): the list opens
   436 px tall and in view, picking Galaxy reverb adds it (card + "fx 1"); tests/fx-ui-check all ok.
+- Clap is now 808-style: new engine `clap` (voices.js Clap808, Spores' own; BlipVoice stays Thunder Plus' copy, unchanged).
+  Band-passed white noise (Tone ~1.1 kHz, Width), N equal sharp bursts (Hands 4, Hands spread 10 ms, Snap 3 ms), then a
+  separate tail from the last burst (Tail 240 ms, Tail level 0.45), light Drive. The old clap is kept as "Blip clap".
+  An old song's Clap track keeps playing (as the new clap); any old Blip settings on it are dropped by fixTrack (not in the
+  clap's rows). Tested: offline render (bursts at 0/10/20/30 ms then the tail, peak 0.60 like the Kick), the worklet in
+  Chrome (claps on each beat at 120), panel shows Tone / Tail / Tail level / Hands / Hands spread; sounds, engine and export checks pass.

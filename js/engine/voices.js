@@ -62,6 +62,46 @@ export class BlipVoice {
 }
 
 
+/* ---------- 808-style clap (Spores' own) ----------
+   After the TR-808's hand clap: white noise through a band-pass (~1 kHz), struck by a few sharp, equal bursts ~10 ms
+   apart (the "many hands"), then a separate, longer noise tail (the circuit's "reverb") from the last burst. Same
+   interface as BlipVoice (set / trig / render adds into out / on), so the worklet runs it the same way. Mono. */
+export class Clap808 {
+  constructor(sr){ this.sr = sr; this.p = Clap808.defaults(); this.reset(); }
+  static defaults(){ return {tone: 1100, width: 0.5, bursts: 4, spread: 10, snap: 3, decay: 240, room: 0.45, drive: 0.15, vel: 1}; }
+  reset(){ this.on = false; this.t = 0; this.rnd = 13579; this.s1 = 0; this.s2 = 0; this.hp = 0; this.g = 1; }
+  set(o){ const d = Clap808.defaults(), p = Object.assign({}, d, o || {}); for (const k in d) if (typeof p[k] !== 'number' || !isFinite(p[k])) p[k] = d[k]; this.p = p; }
+  trig(vel){ this.on = true; this.t = 0; this.g = vel == null ? 1 : vel; }
+  render(out, a, b, g){
+    if (!this.on) return;
+    const p = this.p, sr = this.sr;
+    const n = Math.max(1, Math.min(8, Math.round(p.bursts))), sp = Math.max(1, p.spread) / 1000 * sr;
+    const last = (n - 1) * sp, snap = Math.max(0.3, p.snap) / 1000 * sr, tail = Math.max(10, p.decay) / 1000 * sr;
+    const kS = -1 / snap, kT = -6.9 / tail, room = Math.max(0, Math.min(1, p.room));
+    // band-pass: a zero-delay state-variable filter (stable at any setting)
+    const fc = Math.max(200, Math.min(sr * 0.45, p.tone)), q = 0.6 + 3.4 * (1 - Math.max(0, Math.min(1, p.width)));
+    const G = Math.tan(Math.PI * fc / sr), K = 1 / q, a1 = 1 / (1 + G * (G + K)), a2 = G * a1, a3 = G * a2;
+    const lvl = 2.2 * Math.sqrt(q), dr = Math.max(0, p.drive) * 6, dn = dr ? 1 / Math.tanh(1 + dr) : 1, hpk = Math.exp(-2 * Math.PI * 300 / sr);
+    const end = last + tail * 1.1 + snap * 8;
+    for (let i = a; i < b; i++){
+      const t = this.t;
+      // the bursts: each a sharp sawtooth decay; then the tail, from the last burst (a 1 ms rise so it doesn't click)
+      const k = t < last ? Math.floor(t / sp) : n - 1, tb = t - k * sp;
+      let env = Math.exp(tb * kS);
+      if (t >= last){ const tt = t - last; env += room * Math.exp(tt * kT) * Math.min(1, tt / (sr * 0.001)); }
+      this.rnd = (this.rnd * 1664525 + 1013904223) >>> 0; const nz = this.rnd / 2147483648 - 1;
+      const v3 = nz - this.s2, v1 = a1 * this.s1 + a2 * v3, v2 = this.s2 + a2 * this.s1 + a3 * v3;
+      this.s1 = 2 * v1 - this.s1; this.s2 = 2 * v2 - this.s2;
+      let y = v1 * lvl * env * this.g;
+      const h = y - this.hp; this.hp = y + (this.hp - y) * hpk; y = h * 0.35 + y * 0.65;   // a little less low end
+      if (dr) y = Math.tanh(y * (1 + dr)) * dn;
+      out[i] += y * g * 0.8;
+      this.t++;
+      if (t > end){ this.on = false; this.s1 = this.s2 = this.hp = 0; break; }
+    }
+  }
+}
+
 export class AcidCore {
   constructor(sr){
     this.sr = sr; this.BLK = 16; this.ph = 0; this.subPh = 0; this.lf = 0; this.go = true; this.gate = false; this.leg = false;
@@ -133,7 +173,8 @@ export const DRUMS = {
   'Kick':        {pitch: 58, kick: 0.8, kickT: 28, click: 0.5, decay: 240, drive: 0.2},
   'Boom kick':   {pitch: 48, kick: 0.75, kickT: 55, click: 0.3, decay: 950, drive: 0.35},
   'Snare':       {pitch: 200, kick: 0.35, kickT: 12, noise: 0.72, click: 0.6, decay: 170, filt: 0.2, res: 0.3},
-  'Clap':        {pitch: 1200, kick: 0, noise: 0.95, click: 0.2, decay: 130, filt: 0.3, res: 0.45, grain: 3, grainT: 11},
+  'Clap':        {engine: 'clap'},   // 808-style (Clap808)
+  'Blip clap':   {pitch: 1200, kick: 0, noise: 0.95, click: 0.2, decay: 130, filt: 0.3, res: 0.45, grain: 3, grainT: 11},   // Spores' first clap
   'Closed hat':  {pitch: 5000, kick: 0, noise: 0.95, click: 0.4, decay: 45, filt: 0.62, res: 0.35},
   'Open hat':    {pitch: 6200, kick: 0, noise: 0.9, ring: 0.5, ringF: 7300, decay: 420, filt: 0.58, res: 0.3},
   'Tom':         {pitch: 110, kick: 0.5, kickT: 40, click: 0.3, decay: 320},

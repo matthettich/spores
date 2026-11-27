@@ -34,7 +34,7 @@
  *                      {t:'take', kind:'song', trackId, chunks, len, sr, bpm, startBar}   a song take (chunks joined = len)
  *                      {t:'pong', data, at}         the latency test's input and the bursts' frames within it
  */
-import {BlipVoice, AcidCore} from './voices.js';
+import {BlipVoice, Clap808, AcidCore} from './voices.js';
 import {pumpInit, PumpVoice} from './pump.js';
 import {TapeVoice, Clicks, Capture} from './tape.js';
 import {SongTape, SongCapture} from './songtape.js';
@@ -112,6 +112,7 @@ class SporesEngine extends AudioWorkletProcessor {
         if (v && v.pump) v.pump.free();
         v = {engine: tr.engine, gain: 1, key: ''};
         if (tr.engine === 'blip') v.drum = [new BlipVoice(sampleRate), new BlipVoice(sampleRate)], v.rr = 0;
+        else if (tr.engine === 'clap') v.drum = [new Clap808(sampleRate), new Clap808(sampleRate)], v.rr = 0;
         else if (tr.engine === 'acid') v.synth = new AcidCore(sampleRate), v.rate = 1;
         else if (tr.rendered) v.bufs = new Map(), v.plays = [];
         else { v.pump = new PumpVoice(tr.engine, tr.vals); v.key = JSON.stringify(tr.vals); }
