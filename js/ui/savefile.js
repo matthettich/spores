@@ -1,7 +1,8 @@
 /* js/ui/savefile.js: Save, Save as…, Save a copy…, Open… and Open Recent (File menu + Ctrl/Cmd+S, Shift+S, O).
  *
- * A .spores file is a zip (js/zip.js) holding song.json (and, later, audio/<id>.wav: extraFiles() below is where
- * they will join). Open also takes the old plain .json songs. Where it is written:
+ * A .spores file is a zip (js/zip.js) holding song.json and audio/<id>.wav for every loop take the song refers to
+ * (32-bit float mono, js/wav.js; the samples come from js/audiostore.js, and Open puts them back there before the song
+ * replaces the one on screen). Files without audio (older ones, or songs with no takes) open as before. Open also takes the old plain .json songs. Where it is written:
  *   desktop app: native dialogs and file writes through window.sporesNative.file (desktop/main.js; it only writes
  *                files the person picked or opened); Chrome / Edge: File System Access, the handle kept in
  *                IndexedDB (js/ui/filestate.js); anything else: a download (Save then behaves like Save a copy…).
@@ -9,8 +10,10 @@
  * The current file and the unsaved dot live in filestate.js. Opening still asks first and goes through store.load,
  * so Undo brings the old song back.
  */
-import {isSong, newSong} from '../store.js';
+import {isSong, newSong, clipIds} from '../store.js';
 import {zipWrite, zipRead, isZip} from '../zip.js';
+import {wavBytes, wavRead} from '../wav.js';
+import {getClip, putClip, peekClip} from '../audiostore.js';
 import {createFileState, stripExt} from './filestate.js';
 import {ask, toast} from './dialog.js';
 import {el} from './dom.js';
@@ -28,22 +31,46 @@ export function createSaveFile({store}){
   let busy = false;
 
   // the song as file bytes, with the hash of exactly what was written (the song may change while a dialog is open)
-  function build(){
-    const files = [{name: 'song.json', bytes: enc.encode(store.serialize())}];
-    // later: audio/<id>.wav for each recorded take
-    return {bytes: zipWrite(files), hash: st.nowHash()};
+  // (takes already in memory are written straight away, so Save a copy can still download inside the click)
+  function buildWith(clips, json, hash){
+    const files = [{name: 'song.json', bytes: enc.encode(json)}];
+    for (const [id, c] of clips){
+      if (c) files.push({name: `audio/${id}.wav`, bytes: wavBytes(c.data, c.sr)});
+      else console.warn('Save: no samples for take', id);   // (a file opened without its audio): the song still saves
+    }
+    return {bytes: zipWrite(files), hash};
   }
+  function buildNow(){
+    const json = store.serialize(), ids = [...clipIds(JSON.parse(json))], clips = ids.map(id => [id, peekClip(id)]);
+    return clips.every(([, c]) => c) ? buildWith(clips, json, st.nowHash()) : null;
+  }
+  async function build(){
+    const json = store.serialize(), hash = st.nowHash(), ids = [...clipIds(JSON.parse(json))];
+    const clips = []; for (const id of ids) clips.push([id, await getClip(id)]);
+    return buildWith(clips, json, hash);
+  }
+  // → {data: song, audio: [{id, bytes}]} or null
   function parse(bytes){
     try {
-      let text;
+      let text, audio = [];
       if (isZip(bytes)){
-        const f = zipRead(bytes).find(x => x.name === 'song.json');
+        const all = zipRead(bytes), f = all.find(x => x.name === 'song.json');
         if (!f) return null;
         text = dec.decode(f.bytes);
+        for (const x of all){ const m = /^audio\/([\w-]{1,64})\.wav$/.exec(x.name); if (m) audio.push({id: m[1], bytes: x.bytes}); }
       } else text = dec.decode(bytes);
       const d = JSON.parse(text);
-      return isSong(d) ? d : null;
+      return isSong(d) ? {data: d, audio} : null;
     } catch (e){ return null; }
+  }
+  // the file's takes into this browser's audio store, before the song that plays them is loaded
+  async function keepAudio(audio){
+    let bad = 0;
+    for (const a of audio){
+      try { const w = wavRead(a.bytes); await putClip(a.id, w).catch(() => {}); }
+      catch (e){ bad++; console.warn('Open: unreadable take', a.id, e); }
+    }
+    if (bad) toast(`${bad} recorded take${bad > 1 ? 's' : ''} in that file couldn’t be read, so ${bad > 1 ? 'they' : 'it'} will be silent.`);
   }
   const baseName = () => stripExt(st.name) || 'Song';
   const fileName = () => baseName() + '.spores';
@@ -56,7 +83,7 @@ export function createSaveFile({store}){
   }
 
   async function writeHandle(h){
-    const {bytes, hash} = build();
+    const {bytes, hash} = await build();
     const w = await h.createWritable();
     try { await w.write(bytes); await w.close(); } catch (e){ try { await w.abort(); } catch (e2){} throw e; }
     st.setFile({name: h.name, handle: h}, hash);
@@ -64,7 +91,7 @@ export function createSaveFile({store}){
     return true;
   }
   async function writeNative(path, asNew, near){
-    const {bytes, hash} = build();
+    const {bytes, hash} = await build();
     const r = asNew ? await native.saveAs(fileName(), bytes, near || '') : await native.save(path, bytes);
     if (!r) return false;                                         // the dialog was cancelled
     if (r.error){ toast(`Couldn’t save: ${r.error}`); return false; }
@@ -89,7 +116,7 @@ export function createSaveFile({store}){
         }
         if (h) return await writeHandle(h);
       }
-      const {bytes, hash} = build(), name = fileName();
+      const {bytes, hash} = await build(), name = fileName();
       download(name, bytes);
       st.setFile({name}, hash);
       toast(`Saved “${name}” to your downloads.`);
@@ -126,9 +153,10 @@ export function createSaveFile({store}){
   }
 
   // a copy goes to the downloads (the desktop app shows its own Save box for it); the song's file and dot stay as they are
-  function saveCopy(){
+  async function saveCopy(){
     const name = st.name ? `${baseName()} copy.spores` : `spores-${today()}.spores`;
-    download(name, build().bytes);
+    try { const now = buildNow(); download(name, (now || await build()).bytes); }
+    catch (e){ console.error(e); toast(`Couldn’t save a copy: ${errText(e)}`); return; }
     toast(`Saved a copy, “${name}”, to your downloads.`);
   }
 
@@ -150,11 +178,13 @@ export function createSaveFile({store}){
   async function openLoaded(got){
     if (!got) return false;
     if (got.error){ toast(`Couldn’t open that file: ${got.error}`); return false; }
-    const data = parse(got.bytes);
-    if (!data){ toast(NOT_SONG); return false; }
+    const parsed = parse(got.bytes);
+    if (!parsed){ toast(NOT_SONG); return false; }
+    const data = parsed.data;
     const ok = await ask({title: 'Open this song?',
       body: `“${got.name}” replaces the song on screen. Undo brings the old one back.`, yes: 'Open it', no: 'Keep this song'});
     if (!ok) return false;
+    await keepAudio(parsed.audio);
     if (!store.load(data)){ toast(NOT_SONG); return false; }
     // an old .json song is saved on as a new .spores file (Save asks where), so the old file is never overwritten
     if (/\.json$/i.test(got.name)) st.setFile({name: stripExt(got.name) + '.spores'});
