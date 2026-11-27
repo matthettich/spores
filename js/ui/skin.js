@@ -10,13 +10,17 @@ const KEY = 'spores.skin';
 
 export const SKINS = [
   {id: '', name: 'Minimal', note: 'White, square corners, black lines.', dots: ['minimal-1', 'minimal-2', 'minimal-3']},
-  {id: 'black', name: 'Minimal black', note: 'Black, white lines, cyan selection.', dots: ['black-1', 'black-2', 'black-3']},
-  {id: 'pastel', name: 'Pastel light', note: 'Soft greys and blue, rounded corners.', dots: ['pastel-1', 'pastel-2', 'pastel-3']},
+  {id: 'tr909', name: '909', note: 'Light grey and charcoal, orange for steps. Easy on the eyes.', dots: ['909-1', '909-2', '909-3', '909-4']},
+  {id: 'tr808', name: '808', note: 'Warm charcoal, cream text, orange steps, yellow selection.', dots: ['808-1', '808-2', '808-3', '808-4']},
   {id: 'idmpg', name: 'IDM pink & green', note: 'Warm paper, black ink, hot pink and green.', dots: ['idmpg-1', 'idmpg-2', 'idmpg-3', 'idmpg-4']},
 ];
 
+// skins that were retired → the nearest one now (index.html does the same before the first paint)
+const RENAMED = {black: 'tr808', pastel: 'tr909'};
 export function currentSkin(){
-  try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; }
+  let s = ''; try { s = localStorage.getItem(KEY) || ''; } catch (e) {}
+  s = RENAMED[s] || s;
+  return SKINS.some(k => k.id === s) ? s : '';
 }
 
 export function applySkin(id = ''){

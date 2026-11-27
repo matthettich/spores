@@ -177,7 +177,7 @@ ok(/needs permission/.test(msg) && /\|false$/.test(msg), 'permission denied → 
 
 /* ---- layout: header one row, no page scroll, targets ≥ 44 px, at both sizes and all skins ---- */
 for (const [w, h] of [[1280, 760], [1440, 830]]){
-  for (const skin of ['', 'black', 'pastel']){
+  for (const skin of ['', 'tr909', 'tr808', 'idmpg']){
     await p.setViewport({width: w, height: h});
     await p.evaluate(sk => { sk ? document.documentElement.dataset.skin = sk : delete document.documentElement.dataset.skin; }, skin); await sleep(250);
     for (const mode of ['simple', 'more']){

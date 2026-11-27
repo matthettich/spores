@@ -963,3 +963,28 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
   engine.on('master').
 - Loop song (song.loopSong, default on; button beside Play on the Song screen): off = the worklet queues a stop on the
   song's last sample instead of wrapping (cancelled by Stop / Play). Tested: tests/master-check.mjs, tests/loop-song-check.mjs.
+- Top bar on narrower laptops (MacBook Neo, a window not full screen): the scene group no longer shrinks under its own
+  buttons (it stops at two letters + the + and copy buttons; the strip scrolls for more); the + / copy never shrink. On
+  narrower windows the bar gives up words first: gaps tighten (≤1520), the Scene / Key labels and BPM go (≤1520 / ≤1400),
+  the app and file name (≤1320), then the Simple / More and Play buttons get narrower (≤1240) and gaps again (≤1160).
+  tests/header-fit-check.mjs: 1024–1680 wide, all skins, both screens, 7 scenes; FONT="DejaVu Sans" tries a font wider
+  than the Mac's Futura.
+- Skins: Minimal black and Pastel light retired; new 909 and 808 (after ...Thunder Plus' tr909 / tr808, tuned for reading:
+  dark text ≥ 7:1 on 909; cream on charcoal with soft taupe lines on 808). A saved 'black' opens as 808, 'pastel' as 909
+  (skin.js RENAMED and index.html's first-paint script).
+
+## Queued requests (2026-11-27, from the owner; not started) — for the next session
+1. "Preview on click": clicking to add a note / drum step plays that sound; changing a note plays the new note. A File-menu
+   setting "Preview on click", on by default (per computer, localStorage, like the skin). The worklet already has a 'hit'
+   message (worklet.js msg t:'hit' {ti, note, vel, len}) used for auditioning: use it.
+2. Click-hold-drag on a note step moves it up / down chromatically (drag up = higher), previewing as it goes; one Undo step.
+3. A selected note step: ↑ / ↓ change it chromatically (Shift: octave?), previewing. (steps.js selectStep / stepedit.js nudgeNote.)
+4. A polyphonic synth track: up to 4-note chords per step. Data: a step gets notes [deg…] (≤4) instead of one deg; old
+   songs unchanged (bump v + migrate if the format changes). Engine: AcidCore is mono; the pump synths (Coil / Orbit / Fold)
+   are already poly (PumpVoice), rendered engines play several bufs; MIDI / CV tracks: MIDI can send chords, CV cannot.
+   UI: how to enter chords simply (e.g. a chord picker in the step panel: root + type, or tap several notes). 🔴 Claude.
+5. Song screen: Shift-click to select several blocks; right-click → Copy / Paste / Duplicate the selection; then click a
+   place in the song to paste-insert (between blocks) or paste-replace (over blocks). One Undo step each.
+6. Some "cool flare": animations like Thunder Plus' FX-bar ones (its dancing dogs / scopes / LED animations; see
+   thunder-plus index.html .dogs and the FX bar). Where in Spores is open: e.g. a small animated strip in the header or
+   the Song screen while playing. Keep it light on CPU and skippable.

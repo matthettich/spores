@@ -152,7 +152,7 @@ const check = () => p.evaluate(() => { const scr = document.querySelector('.scre
   return {rows: hd.getBoundingClientRect().height < 72 && hd.scrollWidth <= hd.clientWidth + 1 ? 1 : 2, scrollH: document.documentElement.scrollHeight, innerH: innerHeight, scrollW: document.documentElement.scrollWidth, innerW: innerWidth, small}; });
 for (const [w, h] of [[1280, 760], [1440, 830]]){
   await p.setViewport({width: w, height: h});
-  for (const skin of ['', 'black', 'pastel']){
+  for (const skin of ['', 'tr909', 'tr808', 'idmpg']){
     await p.evaluate(sk => { sk ? document.documentElement.dataset.skin = sk : delete document.documentElement.dataset.skin; }, skin); await sleep(250);
     for (const scr of ['steps', 'song']){
       await p.evaluate(x => window.spores.show(x), scr); await sleep(300);

@@ -221,7 +221,7 @@ async function layout(w, h){
 await (await layout(1280, 760)).close();
 const big = await layout(1440, 830);
 if (process.env.SHOTS){
-  for (const skin of ['minimal', 'black', 'pastel']){
+  for (const skin of ['minimal', 'tr909', 'tr808', 'idmpg']){
     await big.evaluate(skin => { document.documentElement.dataset.skin = skin; const P = document.querySelector('.panel'); P.scrollTop = [...P.querySelectorAll('.psec')].find(x => x.textContent === 'Effects').offsetTop - 8; }, skin); await sleep(200);
     await big.screenshot({path: `${process.env.SHOTS}/fx-${skin}.png`});
   }

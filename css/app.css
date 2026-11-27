@@ -16,8 +16,8 @@
   --lane: calc(var(--touch) + 10px);   /* one grid lane = one track row */
   /* the Skin dialog's preview dots: every skin's colours, whichever skin is on (js/ui/skin.js) */
   --sw-minimal-1: #ffffff; --sw-minimal-2: #111111; --sw-minimal-3: #ff3d8b;
-  --sw-black-1: #141416; --sw-black-2: #f4f4f6; --sw-black-3: #00e5ff;
-  --sw-pastel-1: #d6dbe4; --sw-pastel-2: #f8f9fb; --sw-pastel-3: #22958d;
+  --sw-909-1: #cfd2d4; --sw-909-2: #1f2224; --sw-909-3: #ff6a13; --sw-909-4: #4a4d50;
+  --sw-808-1: #1f1e1b; --sw-808-2: #e2382f; --sw-808-3: #f28c28; --sw-808-4: #f4d23c;
   --sw-idmpg-1: #e9e8e3; --sw-idmpg-2: #141414; --sw-idmpg-3: #ff2d8a; --sw-idmpg-4: #1f9e5a;
 }
 /* 44 px is the minimum (AGENTS.md); a finger on glass wants a little more, so everything that is sized by --touch
@@ -26,17 +26,29 @@
 
 /* skins: only values change (docs/seeds-style-guide.md "Skins"). Signal colours keep their meaning everywhere, so
    only their shades move; the "on" fill and the text are swapped as a pair (--ink on --panel) so both skins read. */
-:root[data-skin="black"] {
-  --bench: #0e0e10; --panel: #141416; --panel-2: #1c1c1f; --edge: #e8e8ea; --ink: #f4f4f6; --muted: #a2a2aa;
-  --track: #2c2c30; --glass: #000000;
-  --video: #f0a94a; --audio: #3fc4b8; --mod: #a98bff; --gate: #ec6fa7; --gate-dark: #a1335f; --record: #ff6250;
-  --selc: #00e5ff; --step: #1d1d21; --step-beat: #2a2a2f; --solo: #f0a94a;
+/* 909 and 808: ...Thunder Plus' drum-machine skins (its tr909 / tr808), tuned here for reading: dark text with at least
+   7:1 on its panel, the machine's own orange for triggers (pink's job), steps a shade off the background. */
+:root[data-skin="tr909"] {
+  --bench: #cfd2d4; --panel: #e3e5e6; --panel-2: #c9cdcf; --edge: #1f2224; --ink: #1f2224; --muted: #3f4448;
+  --track: #a6abaf; --glass: #111315;
+  --video: #f2b705; --audio: #2a8279; --mod: #6a4fa8; --gate: #ff6a13; --gate-dark: #a8430b; --record: #d42a1e;
+  --selc: #ff6a13; --step: #e9ebec; --step-beat: #dadddf; --solo: #f2b705; --radius: 3px;
+  --meter-ok: #5b9a3c; --meter-warn: #f2b705; --meter-hot: #d42a1e;
+  --font: Jost, 'Futura PT', Futura, 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
 }
-:root[data-skin="pastel"] {
-  --bench: #d6dbe4; --panel: #f8f9fb; --panel-2: #eef1f6; --edge: #d0d6e0; --ink: #232830; --muted: #5d6573;
-  --track: #dde2ea; --selc: #ff3d8b; --step: #e8ecf2; --step-beat: #dbe1ea; --solo: #d98a1c; --radius: 10px;
-  --font: 'IBM Plex Sans Condensed', 'Arial Narrow', system-ui, sans-serif;
+:root[data-skin="tr909"] .app-name { font-weight: 700; letter-spacing: .06em; }
+/* 808: warm charcoal, cream text (12:1), its orange for triggers, yellow selection, red only for recording; the lines are
+   a soft taupe rather than bright white, which is what made Minimal black tiring to read */
+:root[data-skin="tr808"] {
+  --bench: #1f1e1b; --panel: #2a2925; --panel-2: #36342f; --edge: #8a8475; --ink: #efe6cf; --muted: #c9c0a9;
+  --track: #4a4740; --glass: #000000;
+  --video: #f4d23c; --audio: #3fb3a5; --mod: #a585dc; --gate: #f28c28; --gate-dark: #a85a12; --record: #e2382f;
+  --selc: #f4d23c; --step: #302f2b; --step-beat: #3b3934; --solo: #f4d23c; --radius: 3px;
+  --meter-ok: #6aa84f; --meter-warn: #f4d23c; --meter-hot: #e2382f;
+  --font: Jost, 'Futura PT', Futura, 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  color-scheme: dark;
 }
+:root[data-skin="tr808"] .app-name { font-weight: 700; font-style: italic; letter-spacing: .04em; }
 
 /* IDM pink & green: ...Thunder Plus' skin of the same name. Warm paper, near-black ink, square corners, a mono font.
    Pink (its --mxsoft) = triggers, gates and selection; green (its --mxbus) = audio. Its play orange stays the
@@ -120,11 +132,11 @@ p { margin: 0; }
 .seg > .tb.on + *, .seg > * + .tb.on { border-left-color: var(--ink); }
 .scn { min-width: var(--touch); padding: 6px 0; font-weight: 600; flex: 0 0 auto; }
 /* the scene strip scrolls sideways once there are more letters than fit; fades mark the hidden side */
-.scenes { flex: 0 1 auto; max-width: calc(var(--touch) * 10); min-width: calc(var(--touch) * 3); overflow-x: auto; overflow-y: hidden;
+.scenes { flex: 0 1 auto; max-width: calc(var(--touch) * 10); min-width: calc(var(--touch) * 2); overflow-x: auto; overflow-y: hidden;
   scrollbar-width: none; scroll-behavior: smooth; overscroll-behavior-x: contain; }
 .scenes::-webkit-scrollbar { display: none; }
 /* fades over the strip's edges (not a mask: masks on a scroller can draw stale letters) */
-.scenewrap { position: relative; display: flex; min-width: 90px; flex: 0 1 auto; }   /* at least two letters show (it scrolls for more); never squeezed under the + */
+.scenewrap { position: relative; display: flex; min-width: 0; flex: 0 1 auto; }   /* at least two letters show (it scrolls for more); never squeezed under the + */
 .scenewrap::before, .scenewrap::after { content: ''; position: absolute; top: 1px; bottom: 1px; width: 28px; pointer-events: none;
   opacity: 0; transition: opacity .15s; z-index: 1; }
 .scenewrap::before { left: 1px; background: linear-gradient(to right, var(--panel), transparent); }
@@ -312,7 +324,7 @@ p { margin: 0; }
   .panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--edge); max-height: 40vh; }
 }
 /* small laptop windows: the Key and Scene captions go (the controls say what they are) so the header stays on one row */
-@media (max-width: 1380px) { .hdr .cap.opt { display: none; } }
+@media (max-width: 1520px) { .hdr .cap.opt { display: none; } }
 /* laptop windows: the scale list only needs to show its name, so it gives its width back to the header */
 .hdr select[aria-label=Scale] { width: clamp(84px, 8vw, 150px); }
 /* A laptop window (a 13" MacBook Air is 1440–1470 wide): the track list is too thin for "Closed hat" on one line. The name may
@@ -329,8 +341,18 @@ p { margin: 0; }
   .hdr { flex-wrap: nowrap; }
   .hdr > * { flex-shrink: 0; }
   .hdr > .hspace { flex-shrink: 1; }
-  .hdr > .scenegrp { flex-shrink: 1; min-width: 0; }
+  /* it shrinks only to its buttons: two letters of the strip, + and copy (and the "Scene" label where it shows) */
+  .hdr > .scenegrp { flex-shrink: 1; min-width: calc(var(--touch) * 4 + 24px); }
+  .scenegrp > .addscn { flex-shrink: 0; }
+  .hdr > .fname { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* a long file name gives way first */
 }
+/* narrower laptop windows (a MacBook Neo, a window not full screen): the bar gives up words before anything overlaps */
+@media (max-width: 1520px) { .hdr { gap: 8px 12px; } }
+@media (max-width: 1400px) { .hdr .tempo .cap { display: none; } .hdr { gap: 8px 10px; } }
+@media (max-width: 1320px) { .hdr > .app-name, .hdr > .fname { display: none; } }
+@media (max-width: 1240px) { .hdr .seg > .tb { padding-left: 9px; padding-right: 9px; } .hdr .tb.play { min-width: 76px; } }
+@media (max-width: 1160px) { .hdr { gap: 8px 7px; } }
+@media (min-width: 1521px) { .hdr > .scenegrp { min-width: calc(var(--touch) * 4 + 80px); } }   /* + the "Scene" label */
 .hdr { min-width: 0; }   /* the bar never pushes the page wider than the window */
 .tb .ico { display: none; font-size: 18px; line-height: 1; }
 /* on a 13" laptop window Undo / Redo become arrows (the words come back on wider windows), leaving room for scenes */
