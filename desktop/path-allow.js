@@ -7,6 +7,7 @@
 const fs = require('fs'), path = require('path');
 const MAX = 64;
 const isSongFile = p => typeof p === 'string' && /\.(spores|json)$/i.test(p);
+const isOutFile = p => typeof p === 'string' && /\.(wav|zip)$/i.test(p);   // exports (File › Export…)
 
 // createAllowList({ file, win32, fsImpl, max }): file is where the kept list lives ('' = memory only).
 function createAllowList(o) {
@@ -39,13 +40,14 @@ function createAllowList(o) {
     },
     has,
     list() { return kept.map(x => x.p); },   // oldest first
-    // the check each file channel makes: null when fine, else the error text for the page
-    check(p) {
-      if (!isSongFile(p)) return 'not a Spores song file';
+    // the check each file channel makes: null when fine, else the error text for the page.
+    // kind 'out' = an export (.wav / .zip only), anything else = a song file
+    check(p, kind) {
+      if (kind === 'out' ? !isOutFile(p) : !isSongFile(p)) return kind === 'out' ? 'not a .wav or .zip file' : 'not a Spores song file';
       if (!has(p)) return 'Spores only opens or saves files you chose in its own dialogs (use Open or Save as)';
       return null;
     }
   };
 }
 
-module.exports = { createAllowList, isSongFile, MAX };
+module.exports = { createAllowList, isSongFile, isOutFile, MAX };

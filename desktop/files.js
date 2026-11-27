@@ -3,7 +3,7 @@
 // files the person picked (path-allow.js) are read or written; bytes travel as Uint8Array / ArrayBuffer.
 'use strict';
 const fs = require('fs'), fsp = fs.promises, path = require('path');
-const { createAllowList, isSongFile } = require('./path-allow');
+const { createAllowList, isSongFile, isOutFile } = require('./path-allow');
 
 const NOT_APP = 'not from the Spores window';
 const MAX_BYTES = 512 * 1024 * 1024;
@@ -15,7 +15,7 @@ const toBuffer = d => d instanceof ArrayBuffer ? Buffer.from(d) : ArrayBuffer.is
 
 // deps: ipcMain, dialog, app, getWin() (the window dialogs hang off), onChange() (the recent list changed),
 // onDirty(isDirty, name) (the page says whether the song has unsaved changes)
-function setupFiles({ ipcMain, dialog, app, getWin, onChange, onDirty, allowFile }) {
+function setupFiles({ ipcMain, dialog, app, getWin, onChange, onDirty, allowFile, shell }) {
   const allow = createAllowList({ file: allowFile === undefined ? path.join(app.getPath('userData'), 'allowed-paths.txt') : allowFile });
   const fromApp = e => { try { const u = new URL(e.senderFrame.url); return u.protocol === 'app:' && u.host === 'spores'; } catch (err) { return false; } };
   const dirOf = near => isSongFile(near) && fs.existsSync(path.dirname(near)) ? path.dirname(near) : app.getPath('documents');
@@ -58,6 +58,36 @@ function setupFiles({ ipcMain, dialog, app, getWin, onChange, onDirty, allowFile
     const out = /\.spores$/i.test(r.filePath) ? r.filePath : r.filePath.replace(/\.json$/i, '') + '.spores';
     remember(out);                             // chosen in the dialog
     return writeSong(out, data);
+  });
+  // EXPORT (File › Export…), after ...Thunder Plus' out-pick / out-write / out-show: the system Save dialog first (starting
+  // where the last export went, else the song's folder, else Music), then the page writes the file there and can show it
+  // in its folder. Only .wav and .zip, only paths picked in that dialog this session (a list of its own, so exports never
+  // crowd songs out of Open Recent).
+  const outs = createAllowList({ file: '' });
+  let lastOut = '';
+  const OUT_KIND = { wav: 'WAV audio', zip: 'Zip archive' };
+  ipcMain.handle('spores:out-pick', async (e, name, near) => {
+    if (!fromApp(e)) return null;
+    const base = String(name || 'Song.wav').replace(/[\\/:*?"<>|]/g, '_'), ext = ((base.match(/\.(\w+)$/) || [])[1] || '').toLowerCase();
+    if (!OUT_KIND[ext]) return null;
+    const dir = lastOut && fs.existsSync(lastOut) ? lastOut : isSongFile(near) && fs.existsSync(path.dirname(near)) ? path.dirname(near) : app.getPath('music');
+    const r = await dialog.showSaveDialog(getWin(), { title: 'Export', defaultPath: path.join(dir, base), filters: [{ name: OUT_KIND[ext], extensions: [ext] }] });
+    if (r.canceled || !r.filePath) return null;
+    let f = r.filePath; if (!f.toLowerCase().endsWith('.' + ext)) f += '.' + ext;
+    lastOut = path.dirname(f); outs.allow(f);   // chosen in the dialog
+    return f;
+  });
+  ipcMain.handle('spores:out-write', async (e, f, data) => {
+    if (!fromApp(e)) return { error: NOT_APP };
+    const bad = outs.check(f, 'out'); if (bad) return { error: bad };
+    const buf = toBuffer(data); if (!buf) return { error: 'nothing to write' };
+    const tmp = f + '.saving';
+    try { await fsp.writeFile(tmp, buf); await fsp.rename(tmp, f); return { ok: true, path: f, name: path.basename(f) }; }
+    catch (err) { try { await fsp.unlink(tmp); } catch (_) {} return { error: err.message }; }
+  });
+  ipcMain.handle('spores:out-show', (e, f) => {
+    if (fromApp(e) && isOutFile(f) && outs.has(f) && fs.existsSync(f) && shell) shell.showItemInFolder(f);
+    return true;
   });
   ipcMain.on('spores:dirty', (e, d, name) => { if (fromApp(e) && onDirty) onDirty(!!d, String(name || '')); });
   ipcMain.handle('spores:recent', e => fromApp(e) ? recent() : []);

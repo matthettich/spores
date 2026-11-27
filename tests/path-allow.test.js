@@ -33,3 +33,13 @@ test('the list is kept across runs (newest last), capped', () => {
   assert.equal(b.check('/s/4.spores'), null);
   assert.match(b.check('/s/1.spores'), /own dialogs/);
 });
+test('exports: kind "out" allows only .wav / .zip that were picked', () => {
+  const { isOutFile } = require('../desktop/path-allow');
+  assert.ok(isOutFile('/a/b.wav') && isOutFile('/a/B.ZIP') && !isOutFile('/a/b.spores') && !isOutFile('/a/b.wav.exe'));
+  const a = createAllowList({ win32: false });
+  assert.match(a.check('/m/x.wav', 'out'), /own dialogs/);
+  a.allow('/m/x.wav'); a.allow('/m/s.spores');
+  assert.equal(a.check('/m/x.wav', 'out'), null);
+  assert.match(a.check('/m/s.spores', 'out'), /not a \.wav or \.zip/);
+  assert.match(a.check('/m/x.wav'), /not a Spores song/);
+});

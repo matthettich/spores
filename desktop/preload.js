@@ -20,5 +20,11 @@ contextBridge.exposeInMainWorld('sporesNative', {
     recent: () => ipcRenderer.invoke('spores:recent'),
     // tell the window whether the song has unsaved changes (it asks before closing), and under what name
     dirty: (isDirty, name) => ipcRenderer.send('spores:dirty', !!isDirty, String(name || ''))
+  },
+  // Export (see files.js): pick → the path or null (cancelled); write → {ok, path, name} / {error}; show → in Finder / Explorer
+  out: {
+    pick: (name, near) => ipcRenderer.invoke('spores:out-pick', name, near),
+    write: (p, bytes) => ipcRenderer.invoke('spores:out-write', p, bytes),
+    show: p => ipcRenderer.invoke('spores:out-show', p)
   }
 });

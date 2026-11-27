@@ -102,6 +102,8 @@ function buildMenu(){
         ? recent.map(r => ({ label: r.name, click: () => pageCall(`openPath(${JSON.stringify(r.path)})`) }))
         : [{ label: 'No recent songs', enabled: false }] },
       { type: 'separator' },
+      { label: 'Export…', click: () => pageCall('exportAudio()') },
+      { type: 'separator' },
       isMac ? { role: 'close' } : { role: 'quit' } ] },
     { label: 'Edit', submenu: [
       { label: 'Undo', accelerator: 'CmdOrCtrl+Z', registerAccelerator: false, click: () => pageUndo(false) },
@@ -152,7 +154,7 @@ if (firstCopy) app.whenReady().then(() => {
     });
   });
 
-  files = setupFiles({ ipcMain, dialog, app, getWin: () => mainWin, onChange: () => buildMenu(),
+  files = setupFiles({ ipcMain, dialog, app, shell, getWin: () => mainWin, onChange: () => buildMenu(),
     onDirty: (d, name) => { dirty = d; songName = name; } });
   buildMenu();
   createWindow();
