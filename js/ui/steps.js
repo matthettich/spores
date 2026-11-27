@@ -10,6 +10,7 @@ import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js
 import {renameTrack} from './trackctl.js';
 import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, newSongTrack, isSongTrack, canAddAudio, copySceneInto} from '../store.js';
 import {trackMeters} from './trackmeters.js';
+import {mountClipboard} from './clipboard.js';
 import {trackColour, openColourPicker} from './trackcolor.js';
 import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
@@ -557,6 +558,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   });
 
   trackMeters(engine, tracksEl);
+  mountClipboard({store, state, goScene, selectTrack, scenesEl, tracksEl});   // right-click: copy / paste scenes and tracks
   engine.on('start', () => { playBtn.classList.add('on'); playBtn.textContent = '■ Stop'; playBtn.setAttribute('aria-pressed', 'true'); });
   engine.on('stop', () => { playBtn.classList.remove('on'); playBtn.textContent = '▶ Play'; playBtn.setAttribute('aria-pressed', 'false'); });
 

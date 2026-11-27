@@ -935,3 +935,9 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
   with the overlapping frames. Tested: tests/audio-check (kicks within 1 ms in the window, pads hold the real neighbouring
   audio, keep going), a node test of TapeVoice (sample-exact window, ±10 ms = ±480 samples), a fake-mic record + drag +
   Undo in Chrome, audio-ui / audio-song / export checks.
+- Copy / paste scenes and tracks: right-click (or Menu key / Shift+F10) on a scene letter or a track row (js/ui/clipboard.js).
+  Scene: Copy · Paste over this scene (asks; keeps the target's name) · Paste as a new scene · Copy to a new scene.
+  Track: Copy · Paste over this track (asks; sound, settings, effects with new ids, steps and takes in every scene; keeps
+  its place and id) · Paste steps into this scene (asks; steps, or audio → audio its take, from the scene copied in) ·
+  Paste as a new track ("<name> 2"). Limits (16 tracks, 4 audio, 32 effects) disable an item with the reason. Toasts
+  no longer catch clicks (they sat over the scene buttons). Tested: tests/clipboard-check.mjs (15 ok), fx-ui, audio-ui checks.

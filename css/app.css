@@ -241,7 +241,7 @@ p { margin: 0; }
 .dtitle { margin: 0; font-size: 19px; font-weight: 600; }
 .dialog .note { font-size: 14px; }
 .dacts { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
-.toast { position: fixed; z-index: 50; top: 14px; left: 50%; transform: translateX(-50%); padding: 8px 14px;
+.toast { pointer-events: none; position: fixed; z-index: 50; top: 14px; left: 50%; transform: translateX(-50%); padding: 8px 14px;
   font-size: 13px; background: var(--ink); color: var(--panel); border-radius: var(--radius); }
 
 /* song screen: scene cards in order, position bar, scene library */
@@ -325,3 +325,9 @@ p { margin: 0; }
 .tmeter { display: block; height: 4px; margin-top: 2px; background: color-mix(in srgb, var(--track) 70%, transparent); overflow: hidden; border-radius: var(--radius); }
 .tmfill { display: block; height: 100%; transform-origin: left; transform: scaleX(0);
   background: color-mix(in srgb, var(--tcol, var(--gate)) 45%, var(--panel)); will-change: transform; }
+
+/* right-click menu (js/ui/clipboard.js): the File menu's look, placed at the pointer */
+.ctxmenu { position: fixed; top: 0; left: 0; right: auto; min-width: 240px; }
+.ctxmenu button { display: block; width: 100%; }
+.ctxmenu button:disabled { color: var(--muted); cursor: default; }
+.ctxsep { height: 1px; margin: 4px 6px; background: var(--track); }
