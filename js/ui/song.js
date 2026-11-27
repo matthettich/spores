@@ -4,7 +4,7 @@
  * Every change goes through store.edit, so Undo, Redo and the autosave work here too. The engine plays the song
  * (engine.play('song')) and tells us on every step which block, repeat and step it is on, which moves the bar.
  */
-import {SCENES, isSongTrack} from '../store.js';
+import {SCENES, isSongTrack, copySceneInto} from '../store.js';
 import {songLanes} from './songlane.js';
 import {STEPS_PER_BAR} from '../engine/engine.js';
 import {noteColor} from '../scale.js';
@@ -101,11 +101,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
   function copyScene(k){
     const s = store.get(), free = SCENES.find(x => !s.scenes[x]);
     if (!free) return;
-    store.edit('Copy scene', song => {
-      const src = song.scenes[k];
-      song.scenes[free] = {name: `Copy of ${src.name || 'Scene ' + k}`, bars: src.bars || 1,
-        steps: JSON.parse(JSON.stringify(src.steps || {})), clips: JSON.parse(JSON.stringify(src.clips || {}))};   // a copy, not a second name for the same notes
-    });
+    store.edit('Copy scene', song => { copySceneInto(song, k, free); });
     toast(`Copied scene ${k} into scene ${free}.`);
   }
 
@@ -253,7 +249,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
     }
     const here = sceneLen(s.scenes[liveBlock.b.scene]);
     const before = lens.slice(0, pos.block).reduce((a, b) => a + b, 0);
-    const step = Math.max(0, pos.rep) * here + clamp(pos.counter, 0, here);
+    const step = before + Math.max(0, pos.rep) * here + clamp(pos.counter, 0, here);   // the blocks already played, then this one
     posbar.append(el('span', {class: 'posnow', style: {left: clamp(step / total * 100, 0, 100) + '%'}}));
     const reps = repeatOf(liveBlock.b);
     posline.textContent = `Playing scene ${pos.block + 1} of ${list.length} · `

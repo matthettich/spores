@@ -57,6 +57,7 @@ class SporesEngine extends AudioWorkletProcessor {
     super();
     this.song = null; this.voices = new Map(); this.queue = []; this.playing = false; this.cvHold = new Map();
     this.tmpL = new Float32Array(128); this.tmpR = new Float32Array(128); this.mono = new Float32Array(128);
+    this.sL = new Float32Array(128); this.sR = new Float32Array(128); this.tlv = new Map(); this.tlvBlocks = 0; this.tlvLive = false;   // track meters
     this.rnd = 0x9e3779b9;
     this.clips = new Map(); this.tapes = new Map(); this.clicks = new Clicks(sampleRate); this.runStep = 0;
     this.fx = new FxHost(sampleRate);
@@ -395,19 +396,22 @@ class SporesEngine extends AudioWorkletProcessor {
     // pump voices run the whole block at once (their notes were sent with their offset in it)
     this.song.tracks.forEach(tr => { const v = this.voices.get(tr.id); if (!v || !v.pump) return; const c = this.fx.buffers(tr.id);
       const sb = !c && this.stemBuf(tr.id);
-      if (c) v.pump.render(c.L, c.R, n, 0.9); else v.pump.render(sb ? sb.L : L, sb ? sb.R : R, n, (tr.vol ?? 0.8) * 0.9); });
+      if (c) v.pump.render(c.L, c.R, n, 0.9); else if (sb) v.pump.render(sb.L, sb.R, n, (tr.vol ?? 0.8) * 0.9);
+      else { this.snap(L, R, 0, n); v.pump.render(L, R, n, (tr.vol ?? 0.8) * 0.9); this.took(tr.id, L, R, 0, n); } });
     // the track effects (fxhost.js), then volume / mute / solo after them
     if (this.fx.chains.size){
       const solo = this.song.tracks.some(t => t.solo), Rx = R !== L ? R : this.tmpR;
       for (const tr of this.song.tracks) if (this.fx.has(tr.id)){ const sb = this.stemBuf(tr.id);
-        this.fx.run(tr.id, sb ? sb.L : L, sb ? sb.R : Rx, n, f0, (solo ? !tr.solo : tr.mute) ? 0 : (tr.vol ?? 0.8)); }
+        if (!sb) this.snap(L, Rx, 0, n);
+        this.fx.run(tr.id, sb ? sb.L : L, sb ? sb.R : Rx, n, f0, (solo ? !tr.solo : tr.mute) ? 0 : (tr.vol ?? 0.8));
+        if (!sb) this.took(tr.id, L, Rx, 0, n); }
     }
     if (sm){   // stems: as they are (no master clip: the page sums them and clips that, as below)
       for (const b of bo.bufs.values()){ out[2 * b.k].set(b.L); out[2 * b.k + 1].set(b.R); }
       bo.take(null, null, f0, n); return true;
     }
     for (let i = 0; i < n; i++){ L[i] = Math.tanh(L[i]); if (R !== L) R[i] = Math.tanh(R[i]); }   // gentle master clip
-    if (bo) bo.take(L, R, f0, n);
+    if (bo) bo.take(L, R, f0, n); else this.postLevels();
     return true;
   }
 
@@ -429,19 +433,42 @@ class SporesEngine extends AudioWorkletProcessor {
     if (++l.blocks >= 6){ this.port.postMessage({t: 'level', peak: l.pk, rms: Math.sqrt(l.sq / l.n)}); l.pk = l.sq = l.n = l.blocks = 0; }
   }
 
+  /* Track meters (js/ui/trackmeters.js): the loudest sample each track adds to the mix, from the mix before and after it
+     plays. Sent ~60 times a second as {t: 'tlevels', lv: {trackId: peak}}, and once more when everything has gone quiet. */
+  snap(L, R, a, b){ this.sL.set(L.subarray(a, b), a); if (R !== L) this.sR.set(R.subarray(a, b), a); }
+  took(id, L, R, a, b){
+    const sL = this.sL, sR = this.sR; let pk = this.tlv.get(id) || 0;
+    for (let i = a; i < b; i++){ let d = L[i] - sL[i]; if (d < 0) d = -d; if (d > pk) pk = d; }
+    if (R !== L) for (let i = a; i < b; i++){ let d = R[i] - sR[i]; if (d < 0) d = -d; if (d > pk) pk = d; }
+    this.tlv.set(id, pk);
+  }
+  postLevels(){
+    if (++this.tlvBlocks < 6) return;
+    this.tlvBlocks = 0; let any = false; const lv = {};
+    for (const [id, p] of this.tlv){ if (p > 1e-4) any = true; lv[id] = p; this.tlv.set(id, 0); }
+    if (any || this.tlvLive) this.port.postMessage({t: 'tlevels', lv});
+    this.tlvLive = any;
+  }
+
   renderVoices(L0, R0, a, b){
-    const L = L0, R = R0;
-    const s = this.song, mono = this.mono, tL = this.tmpL, tR = this.tmpR;
+    const L = L0, R = R0, s = this.song;
     if (this.tapes.size){
       const solo = s.tracks.some(t => t.solo);
       for (const tr of s.tracks){ const v = this.tapes.get(tr.id); if (!v || !v.busy) continue; const c = this.fx.buffers(tr.id);
         const sb = !c && this.stemBuf(tr.id);
         if (c) v.render(c.L, c.R, a, b, this.rec && this.rec.trackId === tr.id ? 0 : 0.9);   // (mute / solo / volume: after its effects)
-        else v.render(sb ? sb.L : L, sb ? sb.R : R, a, b, this.tapeLevel(tr, solo)); }
+        else if (sb) v.render(sb.L, sb.R, a, b, this.tapeLevel(tr, solo));
+        else { this.snap(L, R, a, b); v.render(L, R, a, b, this.tapeLevel(tr, solo)); this.took(tr.id, L, R, a, b); } }
     }
     s.tracks.forEach(tr => {
       const v = this.voices.get(tr.id); if (!v) return;
       const c = this.fx.buffers(tr.id), sb = !c && this.stemBuf(tr.id), L = c ? c.L : sb ? sb.L : L0, R = c ? c.R : sb ? sb.R : R0, g = c ? 0.9 : (tr.vol ?? 0.8) * 0.9;   // with effects: volume after them
+      const mt = !c && !sb && !this.bounce; if (mt) this.snap(L, R, a, b);   // track meter: what this voice adds to the mix
+      this.voice(v, L, R, a, b, g); if (mt) this.took(tr.id, L, R, a, b);
+    });
+  }
+  voice(v, L, R, a, b, g){
+    const mono = this.mono, tL = this.tmpL, tR = this.tmpR;
       if (v.drum){
         if (!v.drum[0].on && !v.drum[1].on) return;
         mono.fill(0, a, b); v.drum[0].render(mono, a, b, g); v.drum[1].render(mono, a, b, g);
@@ -458,7 +485,6 @@ class SporesEngine extends AudioWorkletProcessor {
         const k = g * v.gain * 0.95;
         for (let i = a; i < b; i++){ L[i] += tL[i] * k; if (R !== L) R[i] += tR[i] * k; }
       }
-    });
   }
 }
 

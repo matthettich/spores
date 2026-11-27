@@ -65,6 +65,12 @@ export function newSongTake({id, sr, bpm, startBar = 0}, extra = {}){
 // a new song-length audio track ("Song voice 1…" is the UI's job; it counts as one of the MAX_AUDIO_TRACKS)
 export function newSongTrack(name){ return Object.assign(newTrack('audio', undefined, name || 'Song voice'), {span: 'song', take: null}); }
 export const isSongTrack = t => !!t && t.type === 'audio' && t.span === 'song';
+// copy scene `from` into the empty letter `to` (inside store.edit): its own copy of the steps and takes, not a second name for them
+export function copySceneInto(song, from, to){
+  const src = song.scenes[from]; if (!src || song.scenes[to]) return;
+  song.scenes[to] = {name: `Copy of ${src.name || 'Scene ' + from}`, bars: src.bars || 1,
+    steps: JSON.parse(JSON.stringify(src.steps || {})), clips: JSON.parse(JSON.stringify(src.clips || {}))};
+}
 
 export const newClipId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 

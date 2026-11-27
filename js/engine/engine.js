@@ -8,6 +8,7 @@
  *   eng.setSong(song);  eng.play('scene', 'A');  eng.stop();  eng.hit(trackIndex, deg)
  *   eng.on('step', m => …)  // fires when the step is HEARD (for the playhead): {scene, counter, block, rep, events}
  *   eng.on('sched', m => …) // fires when the step is decided, ~0.1 s early, with context times (for MIDI)
+ *   eng.on('tlevels', lv => …) // ~60/s while anything sounds: {trackId: peak 0..1+} of what each track adds to the mix
  *   eng.toPerf(contextTime) // → performance.now() time of the moment it is heard
  * Audio tracks: loop takes play from scene.clips (their samples come from js/audiostore.js, sent to the worklet by
  * transfer); recording, the input, the level meter and the latency test are in recorder.js (API: docs/NOTES.md).
@@ -132,7 +133,7 @@ export async function createEngine(){
   const recordNow = (id, note) => new Promise(res => { const r = rec.get(id); if (!r) return res();
     if (r.done.has(note)) return res(); r.want.add(note); (r.waiters.get(note) || r.waiters.set(note, []).get(note)).push(res); pump(); });
 
-  const subs = {step: [], sched: [], start: [], stop: [], level: [], rec: [], take: [], input: [], missing: []}, emit = (k, m) => subs[k].forEach(f => { try { f(m); } catch (e) { console.error(e); } });
+  const subs = {step: [], sched: [], start: [], stop: [], level: [], tlevels: [], rec: [], take: [], input: [], missing: []}, emit = (k, m) => subs[k].forEach(f => { try { f(m); } catch (e) { console.error(e); } });
   let song = null, pending = [], raf = 0, playing = false;
 
   /* context time ↔ performance.now(), for the moment a sound comes out of the speakers. getOutputTimestamp() jumps
@@ -181,6 +182,7 @@ export async function createEngine(){
     if (m.t === 'step'){ pending.push(m); emit('sched', m); if (!raf) raf = requestAnimationFrame(tick); }
     else if (m.t === 'start'){ playing = true; emit('start', m); }
     else if (m.t === 'stop'){ playing = false; pending = []; emit('stop', m); }
+    else if (m.t === 'tlevels') emit('tlevels', m.lv);   // track meters: {trackId: peak} (js/ui/trackmeters.js)
   };
 
   const eng = {

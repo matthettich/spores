@@ -8,7 +8,8 @@
 import {STEPS_PER_BAR} from '../engine/engine.js';
 import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js';
 import {renameTrack} from './trackctl.js';
-import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, newSongTrack, isSongTrack, canAddAudio} from '../store.js';
+import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, newSongTrack, isSongTrack, canAddAudio, copySceneInto} from '../store.js';
+import {trackMeters} from './trackmeters.js';
 import {trackColour, openColourPicker} from './trackcolor.js';
 import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
@@ -50,6 +51,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   // Scene letters scroll sideways (up to 26 scenes, A–Z) so the top bar stays one row; "+" stays outside the strip.
   const scenesEl = el('div', {class: 'scenes seg', role: 'group', 'aria-label': 'Scenes'});
   const addSceneBtn = el('button', {class: 'tb scn addscn', title: 'Add a scene', 'aria-label': 'Add a scene', onclick: () => addScene()}, '+');
+  const copySceneBtn = el('button', {class: 'tb scn addscn', title: 'Copy this scene into a new scene', 'aria-label': 'Copy this scene into a new scene', onclick: () => dupScene()}, '⧉');
   // fades at the edges show there are more letters that way (Mac hides scrollbars); a mouse wheel scrolls sideways
   const sceneWrap = el('div', {class: 'scenewrap'}, scenesEl);
   const sceneFades = () => {
@@ -89,7 +91,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Arrange the scenes into a song', onclick: () => openSong()}, 'Song')),
     el('div', {class: 'hgroup'}, playBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
     el('div', {class: 'hgroup'}, el('span', {class: 'cap opt'}, 'Key'), keySel, scaleSel, lockBtn),
-    el('div', {class: 'hgroup scenegrp'}, el('span', {class: 'cap opt'}, 'Scene'), sceneWrap, addSceneBtn),
+    el('div', {class: 'hgroup scenegrp'}, el('span', {class: 'cap opt'}, 'Scene'), sceneWrap, addSceneBtn, copySceneBtn),
     el('span', {class: 'hspace'}),
     el('div', {class: 'hgroup'}, undoBtn, redoBtn),
     fileWrap,
@@ -197,6 +199,12 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     store.edit('Add scene', s => { s.scenes[free] = {name: 'Scene ' + free, bars: 1, steps: {}}; });
     goScene(free);
   }
+  function dupScene(){   // a copy of the scene being edited, in the next free letter
+    const free = SCENES.find(k => !store.get().scenes[k]);
+    if (!free) return;
+    store.edit('Copy scene', s => { copySceneInto(s, state.scene, free); });
+    goScene(free);
+  }
 
   function setBars(n){
     // a selected step past the new end would keep showing (and editing) a step she can no longer see
@@ -270,7 +278,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       scenesEl.append(el('button', {class: 'tb scn' + (k === state.scene ? ' on' : ''), 'aria-pressed': k === state.scene ? 'true' : 'false',
         title: s.scenes[k].name || 'Scene ' + k, onclick: () => goScene(k)}, k));
     }
-    addSceneBtn.hidden = !SCENES.some(k => !s.scenes[k]);
+    addSceneBtn.hidden = copySceneBtn.hidden = !SCENES.some(k => !s.scenes[k]);
     // keep the scene being edited in view, then update the edge fades
     requestAnimationFrame(() => {
       const on = scenesEl.querySelector('.on');
@@ -306,7 +314,8 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
         el('button', {type: 'button', class: 'tbar ' + t.type, style: {'--tcol': trackColour(t)},
           title: 'Change colour', 'aria-label': 'Change colour of ' + t.name,
           onclick: e => { e.stopPropagation(); openColourPicker(store, t.id); }}),
-        el('span', {class: 'tinfo'}, tname, el('span', {class: 'tsub'}, sub.join(' · ')), t.fx && t.fx.length ? el('span', {class: 'tfx', title: 'Effects on this track'}, 'fx ' + t.fx.length) : null),
+        el('span', {class: 'tinfo'}, tname, el('span', {class: 'tsub'}, sub.join(' · ')), t.fx && t.fx.length ? el('span', {class: 'tfx', title: 'Effects on this track'}, 'fx ' + t.fx.length) : null,
+          el('span', {class: 'tmeter', 'data-id': t.id, style: {'--tcol': trackColour(t)}, 'aria-hidden': 'true'}, el('span', {class: 'tmfill'}))),   // trackmeters.js
         mute, solo);
       row.addEventListener('click', () => selectTrack(ti));
       // Enter selects; Space is left to play / stop (main.js)
@@ -546,6 +555,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     else if (k === 'y'){ e.preventDefault(); store.redo(); }
   });
 
+  trackMeters(engine, tracksEl);
   engine.on('start', () => { playBtn.classList.add('on'); playBtn.textContent = '■ Stop'; playBtn.setAttribute('aria-pressed', 'true'); });
   engine.on('stop', () => { playBtn.classList.remove('on'); playBtn.textContent = '▶ Play'; playBtn.setAttribute('aria-pressed', 'false'); });
 

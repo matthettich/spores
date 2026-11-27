@@ -319,3 +319,8 @@ p { margin: 0; }
 .tb .ico { display: none; font-size: 18px; line-height: 1; }
 /* on a 13" laptop window Undo / Redo become arrows (the words come back on wider windows), leaving room for scenes */
 @media (max-width: 1520px) { .tb .ico { display: inline; } .tb .ico + .lbl { display: none; } }
+
+/* track meters (js/ui/trackmeters.js): a thin, light bar in the track's own colour under its name */
+.tmeter { display: block; height: 4px; margin-top: 2px; background: color-mix(in srgb, var(--track) 70%, transparent); overflow: hidden; border-radius: var(--radius); }
+.tmfill { display: block; height: 100%; transform-origin: left; transform: scaleX(0);
+  background: color-mix(in srgb, var(--tcol, var(--gate)) 45%, var(--panel)); will-change: transform; }
