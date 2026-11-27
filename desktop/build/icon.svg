@@ -1,18 +1,61 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- Spores app icon: a stylized mushroom in the app's colours (pink = steps, teal = sound); spots are step squares -->
-  <rect x="94" y="94" width="836" height="836" rx="180" fill="#ffffff" stroke="#111111" stroke-width="28"/>
-  <!-- stem -->
-  <path d="M432 560 L414 790 Q412 812 434 812 L590 812 Q612 812 610 790 L592 560 Z" fill="#ffffff" stroke="#111111" stroke-width="24" stroke-linejoin="round"/>
-  <path d="M452 640 Q512 660 572 640" fill="none" stroke="#111111" stroke-width="18" stroke-linecap="round"/>
-  <!-- cap -->
-  <path d="M212 548 C212 330 340 236 512 236 C684 236 812 330 812 548 Q812 576 784 576 L240 576 Q212 576 212 548 Z" fill="#c93d78" stroke="#111111" stroke-width="24" stroke-linejoin="round"/>
-  <!-- spots: little steps -->
-  <rect x="300" y="400" width="84" height="84" rx="16" fill="#ffffff" stroke="#111111" stroke-width="16"/>
-  <rect x="470" y="318" width="84" height="84" rx="16" fill="#ffffff" stroke="#111111" stroke-width="16"/>
-  <rect x="640" y="400" width="84" height="84" rx="16" fill="#22958d" stroke="#111111" stroke-width="16"/>
-  <!-- spores drifting -->
-  <rect x="262" y="660" width="40" height="40" rx="9" fill="#22958d"/>
-  <rect x="318" y="740" width="28" height="28" rx="7" fill="#c93d78"/>
-  <rect x="704" y="652" width="34" height="34" rx="8" fill="#c93d78"/>
-  <rect x="680" y="744" width="44" height="44" rx="10" fill="#22958d"/>
+  <!-- Spores app icon v2: a neon mushroom on black. Pink cap with step-square spots, gills, and spores rising like a level meter -->
+  <defs>
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff5fa2"/><stop offset="0.65" stop-color="#e0408a"/><stop offset="1" stop-color="#9c2a62"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#cfd2d8"/><stop offset="0.45" stop-color="#f4f4f6"/><stop offset="1" stop-color="#b9bcc4"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1c22"/><stop offset="1" stop-color="#0b0b0e"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="22" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="tile"><rect x="64" y="64" width="896" height="896" rx="200"/></clipPath>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <g clip-path="url(#tile)">
+    <!-- floor glow -->
+    <ellipse cx="512" cy="842" rx="250" ry="34" fill="#00e5ff" opacity="0.18" filter="url(#glow)"/>
+    <!-- stem, leaning a little -->
+    <path d="M462 560 C452 660 436 760 420 838 Q512 860 604 838 C588 760 572 660 562 560 Z" fill="url(#stem)"/>
+    <path d="M458 640 Q512 664 566 640" fill="none" stroke="#9aa0aa" stroke-width="10" stroke-linecap="round"/>
+    <!-- gills under the cap -->
+    <path d="M226 560 Q512 640 798 560 Q512 600 226 560 Z" fill="#5a1a3a"/>
+    <g stroke="#2a0d1c" stroke-width="5" opacity="0.8">
+      <line x1="300" y1="574" x2="470" y2="600"/><line x1="380" y1="586" x2="482" y2="602"/>
+      <line x1="724" y1="574" x2="554" y2="600"/><line x1="644" y1="586" x2="542" y2="602"/>
+    </g>
+    <!-- cap -->
+    <g filter="url(#glow)">
+      <path d="M200 556 C200 330 340 210 512 210 C684 210 824 330 824 556 Q512 600 200 556 Z" fill="url(#cap)"/>
+    </g>
+    <!-- highlight -->
+    <path d="M300 380 C330 300 400 262 470 252" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="22" stroke-linecap="round"/>
+    <!-- spots: a row of steps, one lit -->
+    <g>
+      <rect x="282" y="430" width="70" height="70" rx="14" fill="#ffffff" fill-opacity="0.92"/>
+      <rect x="380" y="372" width="70" height="70" rx="14" fill="#ffffff" fill-opacity="0.92"/>
+      <rect x="478" y="344" width="70" height="70" rx="14" fill="#00e5ff" filter="url(#soft)"/>
+      <rect x="576" y="372" width="70" height="70" rx="14" fill="#ffffff" fill-opacity="0.92"/>
+      <rect x="674" y="430" width="70" height="70" rx="14" fill="#ffffff" fill-opacity="0.92"/>
+    </g>
+    <!-- spores rising, brightest at the bottom like a meter -->
+    <g filter="url(#soft)">
+      <rect x="250" y="760" width="38" height="38" rx="8" fill="#00e5ff"/>
+      <rect x="250" y="706" width="38" height="38" rx="8" fill="#00e5ff" opacity="0.7"/>
+      <rect x="250" y="652" width="38" height="38" rx="8" fill="#00e5ff" opacity="0.4"/>
+      <rect x="736" y="760" width="38" height="38" rx="8" fill="#ff3d8b"/>
+      <rect x="736" y="706" width="38" height="38" rx="8" fill="#ff3d8b" opacity="0.7"/>
+      <rect x="736" y="652" width="38" height="38" rx="8" fill="#ff3d8b" opacity="0.4"/>
+      <rect x="736" y="598" width="38" height="38" rx="8" fill="#ff3d8b" opacity="0.18"/>
+      <rect x="320" y="790" width="22" height="22" rx="5" fill="#00e5ff" opacity="0.6"/>
+      <rect x="686" y="800" width="22" height="22" rx="5" fill="#ff3d8b" opacity="0.6"/>
+    </g>
+  </g>
 </svg>
