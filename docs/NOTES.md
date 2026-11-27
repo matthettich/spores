@@ -2,6 +2,69 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — effects FX1: engine + data for up to 4 effects per track done (Claude, on `dev`, pushed)
+- **Done:** `js/engine/tfx.wasm` (unchanged copy of thunder-plus/waves/dsp/tfx.wasm, Thunder 706d70c, md5 99337ee2…;
+  refresh: `sh tools/copy-fx.sh /path/to/thunder-plus`, then check fx.js still matches Thunder's TFX table). `js/engine/fx.js`:
+  all 34 effects in tfx.wasm with plain names, 8 groups, every setting's key / default / range / value text / wasm map copied
+  from Thunder's `const TFX = {` (values are Thunder's whole numbers, mostly 0–255, 128 = middle; Time in steps, Note as
+  MIDI, Pitch in semitones), 1–3 main knobs each. `js/engine/fxhost.js` runs them in the worklet; `js/fxedit.js` edits them.
+  Song **v 3**: `track.fx = [{id, type, on, p}]` (v2 → fx = []; fixTrack cleans every version: known types, ≤ 4, values
+  clamped to range, unknown keys dropped, ids unique; MIDI / CV tracks always []). Save / Open unchanged (it's in song.json).
+- **Not included:** Thunder's JS-only effects (Resonator chords, Pitch delay, Pitch reverb, Flex, Step gate, Grains, Scramble,
+  Glitch, Retrigger, Degrade, Vintage sampler): they are not in tfx.wasm (plain JS in Thunder's index.html, most tied to its
+  tracker clock / FLX GAT RTG commands). Of the wasm ones none was dropped; Cross-mod lost its "Input R" carrier (needs a
+  second track as the carrier) and keeps Sine / Triangle / Saw.
+- **Signal path:** voice / take → effect 1…4 → volume, mute, solo (all after the effects, so a muted track's tail is silent
+  too) → mix → master tanh. Drum, synth (Acid, pump, Modal / Scanned), loop and song takes. MIDI / CV: none. A track with no
+  effects plays exactly as before (same code path).
+- **Behaviour:** on / off = 5 ms crossfade of input and output; switched on again it starts afresh (no stale echo jumps in).
+  Add = fades in; remove = fades out, then freed. Reorder = the track's effects output dips to silence over 2.7 ms and back
+  (no click; not a crossfade). Settings glide (~30 ms one-pole per block) except choices / counts (fx.js `hard`). Reverbs
+  run fully wet with Thunder's rvMix blend. Crash (wasm trap) → that effect is bypassed for good; NaN / runaway → that block
+  passes dry, effect restarted; bad input samples zeroed, anti-denormal; views remade when wasm memory grows. Silent in and
+  out for 4 s → it sleeps (Vinyl never). Trance gate restarts on Play, on step 1. Two wasm instances (32 effects each).
+- **Tails (decision, owner may change):** while playing, effects run on (a reverb rings through a scene change or empty
+  steps). On Stop they ring on; once a track has had silence going IN for 3 s, whatever still sounds (an endless echo, a
+  frozen grain cloud) fades out over 0.25 s and its effects are started afresh, so nothing old returns on the next Play.
+  A tapped step cancels that at once.
+- **Limit (decision):** 4 per track, **32 in the song** (`MAX_SONG_FX`; a file with more still plays up to 64). Cost per
+  128-frame block (offline render, this 2.1 GHz Xeon; budget 2667 µs): 16 drum tracks no effects 83 µs · 64 effects of every
+  kind 1756 µs · 64 of the heaviest (Space, Speaker cab, Tape, Galaxy) 4140 µs = over real time · 32 heaviest 2104 µs ·
+  32 of every kind 908 µs. A Mac M-series core is roughly twice this, so 64 typical would fit there but 64 heavy would not.
+- **Fixed on the way:** a compiled `WebAssembly.Module` posted into the realtime AudioWorklet arrives as a `messageerror` in
+  Chrome 153, so **COIL / ORBIT / FOLD / BOING were silent in real time** (offline renders were fine, tests only checked that
+  the post happened). engine.js now sends the wasm bytes and the worklet compiles them (pump and tfx); `wasmReady` /
+  `fxReady` now resolve to the worklet's own answer.
+- **API for the panel (Sonnet agent):** all in `js/engine/fx.js` and `js/fxedit.js`, no engine calls needed (main.js sends
+  every edit to the engine).
+  - Menus: `FX_GROUPS` (8 names in order), `FX_LIST` → `[{type, name, group, about}]` in menu order (group by `group`).
+  - `fxInfo(type)` → `{type, name, group, about, main: [keys], params: [{key, label, def, min, max, names?, main}]}`.
+    A param with `names` is a choice (a select / segmented control, value = index); otherwise a whole-number slider
+    min…max, step 1. Simple shows `main` (in that order), More shows all `params` (in their order).
+  - `fxText(type, key, value, bpm)` → the value as shown ("−3.0 dB", "4 steps · 500 ms", "Hi-fi"); pass the song's bpm
+    (only the echo's Time uses it). `fxDefaults(type)`; `MAX_FX` (4), `MAX_SONG_FX` (32).
+  - `canHaveFx(track)` (drum / synth / audio), `canAddFx(track, song)`, `fxCount(song)` ("12 of 32 in the song").
+  - Edits (each one Undo step): `addFx(store, trackId, type, at?)` → new id or null ('Add effect'); `removeFx(store, trackId,
+    fxId)` (ask first: "Remove Galaxy reverb?"); `moveFx(store, trackId, fxId, -1 | +1)`; `setFxOn(store, trackId, fxId, on)`;
+    `setFxParam(store, trackId, fxId, key, value)` ('Effect setting': consecutive moves of the same knob within 600 ms
+    merge into one Undo, so writing on `input` is fine); `resetFx(store, trackId, fxId)`.
+  - The effect's data: `track.fx[i] = {id, type, on, p}`; read it from `store.get()` fresh after Undo.
+- **Tested:** new `tests/fx-check.mjs` (35 checks, all pass; `ONLY=each|clicks|timing|tails` runs one offline section):
+  every effect renders a snare with signal and no NaN / Inf; no click (largest sample jump within 1.25× + 0.004 of the
+  effect on or off alone) toggling eq, density, Galaxy, Space, echo, chorus, ladder, pitch shifter, compressor, tube,
+  overdrive, bitcrusher on a held sine take, adding / removing the first effect, reordering; 170 BPM kick onsets with
+  64 effects identical to without (to the sample); Space tail after a hit, rings on after Stop; an endless echo (Repeats
+  255) faded to silence after Stop and silent on Play again; pitch shifter +12 on an audio take (440 Hz out); on the page:
+  both wasm files reach the realtime worklet, it makes the effects, Add / setting clamp / one-drag Undo / move / off /
+  Undo / Redo, 4 per track, 32 per song (Undo back), old v2 song → v3 with fx = [], odd lists cleaned. Still pass:
+  engine-check (170 BPM gaps exact, MIDI clock 20.83–20.86 ms), sounds-check, audio-check (its v1 → v2 check now expects
+  v3), audio-song-check (same), audio-ui-check, audio-song-ui-check, save-check, cv-render-check, zip-check, cv-ui-check.
+- **Not tested:** real speakers / a real Mac (CPU there), Electron (bytes path should be the same), every effect's every
+  setting extreme (crash-bypass covers a trap), touch.
+- **Odd:** each OfflineAudioContext keeps its two wasm instances until the page goes; after ~60 offline renders in one page
+  new instances fail (effects then pass the sound through). The test opens a fresh page per section. The app has one context.
+- **Next:** (3) the Effects panel (Sonnet agent, from the API above), then (5) desktop build + release.
+
 ## 2026-11-26 — audio tracks B4: the UI for the song-length audio track done (Claude agent, on `dev`, pushed)
 - **Done:** Add track ▾ › "Song-length audio track (record over the whole song)" (names "Song voice 1…", shares the 4-audio limit;
   both audio items grey out with "4 of 4 used"). **Steps screen:** the track keeps its row ("Audio · whole song · no take yet") but
@@ -275,7 +338,7 @@ Stored on the track (`track.take = {id, sr, bpm, startBar, gain, fadeIn, fadeOut
 the blocks, with move (start bar), trim and fades in More. Same input picker, latency correction, Hear myself, Undo,
 `.spores` storage and export (stems include it). Build after loop takes, reusing their recording code.
 
-## 2026-11-26 — PLAN (not started): up to 4 effects per track from Thunder Plus (🔴 engine work: Claude)
+## 2026-11-26 — PLAN: up to 4 effects per track from Thunder Plus (steps 1, 2, 4 done: see "effects FX1" above; 3, 5 not started)
 - **Source (read only, don't change Thunder Plus):** `thunder-plus/waves/dsp/tfx.wasm` (674 KB): Thunder's native C++
   track-effects host compiled to WebAssembly. 34 effects (Mutable Instruments Rings / Clouds / Beads / Warps, Airwindows
   Density / ToTape6 / EQ / Galactic / Verbity2 / ToVinyl4 / Tube2 …, DaisySP chorus / flanger / phaser / overdrive /

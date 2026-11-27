@@ -44,8 +44,14 @@ js/engine/          🔴 Claude only: clock worklet, voices, CV out
   tape.js             audio tracks in the worklet: loop-take playback, clicks, input capture
   songtape.js         song-length audio takes in the worklet: playback by song bar, open-ended capture
   recorder.js         the input, level meter, Hear myself, latency test and record() (page side)
+  fx.js               the track effects' table: names, groups, settings, value text, what goes to the wasm
+  fxhost.js           the track effects in the worklet: up to 4 per track, two tfx.wasm instances (32 effects each)
+  tfx.wasm            GENERATED: ...Thunder Plus' track-effects module, copied by tools/copy-fx.sh
+js/fxedit.js        add / remove / move / switch / set an effect, each one Undo step (for the Effects panel)
 js/ui/cv.js         a CV track's panel section, Tune CV… and Test outputs…
 tools/gen-sounds.mjs  re-copies the generated engine files from a Thunder Plus checkout
+tools/copy-fx.sh      re-copies tfx.wasm from a Thunder Plus checkout
+THIRD_PARTY_NOTICES.md  the effects' MIT notices (they travel with the desktop app)
 tests/*.mjs           headless engine and sound checks (dev only, see each file)
 ```
 
@@ -64,7 +70,7 @@ the desktop app keeps the path and offers Open Recent and a Save / Don't save / 
 
 ```js
 song = {
-  v: 2,                              // 2: audio tracks (scene.clips); v1 files migrate
+  v: 3,                              // 3: track effects (track.fx); 2: audio tracks (scene.clips); older files migrate
   bpm: 120, swing: 0,                // swing hidden behind More
   key: 'C', scale: 'minor', lock: true,
   tracks: [                          // 8 by default, + Add track up to 16
@@ -76,7 +82,10 @@ song = {
       params: {},                    // drum / synth: the sound's settings she has changed (settingsFor in sounds.js)
       oct: 3,                        // synth / midi / cv: root octave (2 = C2 = MIDI 36)
       len: 0,                        // More: per-track length in steps (0 = the scene's)
-      vol: 0.8, mute: false, solo: false },  // midi also has midi.clock: send clock + Start / Stop to its port
+      vol: 0.8, mute: false, solo: false,    // midi also has midi.clock: send clock + Start / Stop to its port
+      fx: [ { id: 'f…', type: 'reverb', on: true, p: { mix: 48, big: 255 /* … every setting, fx.js ranges */ } } ] },
+                                     // drum / synth / audio: up to 4 effects, in order, after the sound and before volume;
+                                     // MIDI / CV: always []. 32 in the whole song (fx.js MAX_SONG_FX)
     { id: 't10', type: 'audio', span: 'song',  // a song-length audio track (counts toward the 4): no scene clips,
       take: { id: 'c…', sr: 48000, bpm: 120, startBar: 4,   // one take from song bar 4 (songmap.js), or null;
               gain: 1, fadeIn: 0.004, fadeOut: 0.004, trimStart: 0, trimEnd: 0 } }   // seconds; plays in song mode only
