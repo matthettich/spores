@@ -9,10 +9,15 @@
  *   eng.on('step', m => …)  // fires when the step is HEARD (for the playhead): {scene, counter, block, rep, events}
  *   eng.on('sched', m => …) // fires when the step is decided, ~0.1 s early, with context times (for MIDI)
  *   eng.toPerf(contextTime) // → performance.now() time of the moment it is heard
+ * Audio tracks: loop takes play from scene.clips (their samples come from js/audiostore.js, sent to the worklet by
+ * transfer); recording, the input, the level meter and the latency test are in recorder.js (API: docs/NOTES.md).
  */
 import {degToMidi} from '../scale.js';
 import {resolve, ENGINES} from './sounds.js';
 import {cvValue, gateValue, DEFAULT_FS, CV_CHANNELS} from './cv.js';
+import {createRecorder} from './recorder.js';
+import {getClip} from '../audiostore.js';
+import {clipIds} from '../store.js';
 
 export const STEPS_PER_BAR = 16;
 
@@ -33,6 +38,7 @@ export function compile(song, opts = {}){
     const len = Math.max(1, Math.min(4, sc.bars | 0 || 1)) * STEPS_PER_BAR;
     scenes[k] = {len, steps: song.tracks.map(t => {
       const lane = (sc.steps && sc.steps[t.id]) || [], out = new Array(len).fill(null);
+      if (t.type === 'audio') return out;   // an audio track plays its take, not steps
       for (let i = 0; i < len; i++){
         const st = lane[i]; if (!st || !st.on) continue;
         out[i] = {note: t.type === 'drum' ? (t.seedsNote ?? 36) : degToMidi(st.deg || 0, song.key, song.scale, t.oct ?? 3),
@@ -40,18 +46,25 @@ export function compile(song, opts = {}){
         if (t.type === 'cv') out[i].cv = cvValue(out[i].note, t.cv, t.oct ?? 3, fs);
       }
       return out;
+    }), clips: song.tracks.map(t => {
+      const c = t.type === 'audio' && sc.clips && sc.clips[t.id];
+      return c && c.id ? {id: c.id, bars: c.bars || 1, sr: c.sr || 48000, gain: c.gain ?? 1, offset: c.offset || 0,
+        fadeIn: c.fadeIn || 0, fadeOut: c.fadeOut || 0, reverse: !!c.reverse} : null;
     })};
   }
-  if (!Object.keys(scenes).length) scenes.A = {len: 16, steps: tracks.map(() => new Array(16).fill(null))};
+  if (!Object.keys(scenes).length) scenes.A = {len: 16, steps: tracks.map(() => new Array(16).fill(null)), clips: tracks.map(() => null)};
   const order = (song.song || []).filter(b => scenes[b.scene]).map(b => ({scene: b.scene, repeat: Math.max(1, b.repeat | 0), loop: !!b.loop}));
-  return {bpm: song.bpm || 120, swing: song.mode === 'more' ? (song.swing || 0) : 0, tracks, scenes, song: order};
+  return {bpm: song.bpm || 120, swing: song.mode === 'more' ? (song.swing || 0) : 0, tracks, scenes, song: order,
+    hasAudio: tracks.some(t => t.type === 'audio')};
 }
 
 export async function createEngine(){
   const ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: 'interactive'});
   await ctx.audioWorklet.addModule(new URL('./worklet.js', import.meta.url));
   // output 0: the stereo mix (→ channels 1–2); output 1: CV, straight to the interface's channels, no gain on the way
-  const node = new AudioWorkletNode(ctx, 'spores-engine', {numberOfInputs: 0, numberOfOutputs: 2, outputChannelCount: [2, CV_CHANNELS]});
+  // input 0: the recording input (recorder.js connects one mono channel to it)
+  const node = new AudioWorkletNode(ctx, 'spores-engine', {numberOfInputs: 1, numberOfOutputs: 2, outputChannelCount: [2, CV_CHANNELS],
+    channelCount: 1, channelCountMode: 'explicit', channelInterpretation: 'discrete'});
   const master = ctx.createGain(); master.gain.value = 0.9;
   master.channelCount = 2; master.channelCountMode = 'explicit';
   const openChannels = () => { const d = ctx.destination; d.channelInterpretation = 'discrete'; try { d.channelCount = Math.max(2, d.maxChannelCount); } catch (e) {} };
@@ -99,7 +112,7 @@ export async function createEngine(){
   const recordNow = (id, note) => new Promise(res => { const r = rec.get(id); if (!r) return res();
     if (r.done.has(note)) return res(); r.want.add(note); (r.waiters.get(note) || r.waiters.set(note, []).get(note)).push(res); pump(); });
 
-  const subs = {step: [], sched: [], start: [], stop: []}, emit = (k, m) => subs[k].forEach(f => { try { f(m); } catch (e) { console.error(e); } });
+  const subs = {step: [], sched: [], start: [], stop: [], level: [], rec: [], take: [], input: [], missing: []}, emit = (k, m) => subs[k].forEach(f => { try { f(m); } catch (e) { console.error(e); } });
   let song = null, pending = [], raf = 0, playing = false;
 
   /* context time ↔ performance.now(), for the moment a sound comes out of the speakers. getOutputTimestamp() jumps
@@ -124,20 +137,39 @@ export async function createEngine(){
     if (playing || pending.length) raf = requestAnimationFrame(tick);
   };
 
+  /* loop takes in the worklet: exactly the ones the song refers to. Each is read from audiostore.js (memory, else
+     IndexedDB) and sent as a copy by transfer; a take the song no longer uses is dropped there (Undo sends it again). */
+  const sent = new Set();
+  function syncClips(s){
+    const want = clipIds(s);
+    for (const id of [...sent]) if (!want.has(id)){ sent.delete(id); node.port.postMessage({t: 'unclip', id}); }
+    for (const id of want) if (!sent.has(id)){
+      sent.add(id);
+      getClip(id).then(c => {
+        if (!sent.has(id)) return;                                   // dropped again meanwhile
+        if (!c){ sent.delete(id); emit('missing', {id}); return; }   // not in this browser (a file opened without its audio)
+        const data = new Float32Array(c.data);
+        node.port.postMessage({t: 'clip', id, data}, [data.buffer]);
+      });
+    }
+  }
+  const recorder = createRecorder({ctx, node, master, emit: (k, m) => emit(k, m)});
+
   node.port.onmessage = e => {
     const m = e.data;
+    if (recorder.onMessage(m)) return;
     if (m.t === 'step'){ pending.push(m); emit('sched', m); if (!raf) raf = requestAnimationFrame(tick); }
     else if (m.t === 'start'){ playing = true; emit('start', m); }
     else if (m.t === 'stop'){ playing = false; pending = []; emit('stop', m); }
   };
 
-  return {
+  const eng = {
     ctx, node, toPerf,
     get playing(){ return playing; },
     on(k, f){ subs[k].push(f); return () => { subs[k] = subs[k].filter(g => g !== f); }; },
     wasmReady,
     setSong(s){
-      song = s; compiled = compile(s, {fs: cvFs}); node.port.postMessage({t: 'song', song: compiled});
+      song = s; compiled = compile(s, {fs: cvFs}); node.port.postMessage({t: 'song', song: compiled}); syncClips(s);
       clearTimeout(recTimer); recTimer = setTimeout(() => planRecordings(compiled), rec.size ? 150 : 0);
     },
     async play(mode = 'scene', scene = 'A', block = 0){ if (ctx.state !== 'running') await ctx.resume(); node.port.postMessage({t: 'play', mode, scene, block}); },
@@ -160,4 +192,7 @@ export async function createEngine(){
       return note;
     },
   };
+  // recording (recorder.js): audioInputs, openInput, closeInput, setMonitor, measureLatency, record, stopRecording, …
+  Object.defineProperties(eng, Object.getOwnPropertyDescriptors(recorder.api));
+  return eng;
 }

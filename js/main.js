@@ -7,6 +7,9 @@ import {mountSong} from './ui/song.js';
 import {applyCvSettings} from './ui/cv.js';
 import {toast} from './ui/dialog.js';
 import {createSaveFile, bindFileKeys} from './ui/savefile.js';
+import {gcClips} from './audiostore.js';
+import {clipIds} from './store.js';
+import {keepTake} from './takes.js';
 
 const store = createStore(undefined, {
   onSaveError: () => toast('This browser won’t keep the song (private window or full). Use File › Save to keep it in a file.'),
@@ -30,6 +33,8 @@ try { await applyCvSettings(engine); }   // CV output device + volts at full sca
 catch (e) { console.error(e); }          // a missing CV device must not stop the app opening
 engine.setSong(store.get());
 store.subscribe(s => engine.setSong(s));
+// recorded takes the song no longer refers to are let go here, at start-up, when there is no Undo history to need them
+gcClips(clipIds(store.get())).catch(e => console.warn('audiostore', e));
 
 // Closing or reloading the tab writes the (delayed) autosave straight away, so the last tap is not lost.
 window.addEventListener('pagehide', () => store.saveNow());
@@ -77,4 +82,16 @@ engine.on('stop', () => { steps.stopped(); song.stopped(); });
 // MIDI is optional: without it (or if the browser says no), Spores still plays its own sounds.
 midi.init().then(ok => { if (ok) midi.attach(engine, store.get); });
 
-window.spores = {store, engine, midi, show, files};   // for the console and tests
+window.spores = {store, engine, midi, show, files, keepTake};   // for the console and tests
+
+/* Debug only, until the audio-track screens exist (console): await spores.debugRecord() adds an audio track if there
+   is none, opens the default input, records one bar in the current first scene and keeps it (Undo removes it). */
+window.spores.debugRecord = async ({bars = 1, scene = Object.keys(store.get().scenes)[0]} = {}) => {
+  const {newTrack, canAddAudio} = await import('./store.js');
+  let t = store.get().tracks.find(x => x.type === 'audio');
+  if (!t){ if (!canAddAudio(store.get())) throw new Error('no room for an audio track'); const nt = newTrack('audio'); store.edit('Add track', s => { s.tracks.push(nt); }); t = nt; }
+  if (!engine.input.open){ const r = await engine.openInput({}); if (!r.ok) throw new Error(r.error); }
+  const take = await engine.record({scene, track: t.id, bars});
+  if (take) keepTake(store, take);
+  return take;
+};
