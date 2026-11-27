@@ -10,7 +10,7 @@
  *                      {t:'scene', scene}           change scene (at the next bar, so it stays in time)
  *                      {t:'stop'}
  *                      {t:'hit', ti, note, vel}     play one track now (tapping a step, Prev / Next sound)
- *                      {t:'wasm', module}           pump-synth.wasm, compiled on the page (COIL, ORBIT, FOLD, BOING)
+ *                      {t:'wasm', bytes}            pump-synth.wasm's bytes, compiled here (COIL, ORBIT, FOLD, BOING)
  *                      {t:'buf', id, note, data}    a recorded note of a Modal / Scanned track (render-worker.js)
  *                      {t:'cvtest', ch, value}      hold a CV output at a value (Tune CV, Test outputs); value null = let go
  *                      {t:'clip', id, data}         a loop take's samples (Float32Array, transferred); {t:'unclip', id} drops one
@@ -20,6 +20,7 @@
  *                      {t:'recstop', discard}       stop recording: a loop take not finished is dropped (Stop does the
  *                                                   same); a song take ends here and is kept (unless discard)
  *                      {t:'ping', count, gap}       latency test: bursts every `gap` frames, the input recorded meanwhile
+ *                      {t:'tfx', bytes}             tfx.wasm's bytes, compiled here: the track effects (fxhost.js)
  *                      {t:'peek'}                   → {t:'peek', clips, tapes, recording} (tests)
  * Outputs: 0 = the stereo mix, 1 = CV_CHANNELS of CV (cv.js), sample values, straight to the interface.
  * Messages out:        {t:'start', time}            first step's time, for MIDI Start
@@ -36,6 +37,14 @@ import {BlipVoice, AcidCore} from './voices.js';
 import {pumpInit, PumpVoice} from './pump.js';
 import {TapeVoice, Clicks, Capture} from './tape.js';
 import {SongTape, SongCapture} from './songtape.js';
+import {FxHost} from './fxhost.js';
+
+/* A wasm module from the page: its bytes (compiled here: a compiled WebAssembly.Module can't be posted into a realtime
+   AudioWorklet in current Chrome, it arrives as a 'messageerror'), or a Module (offline renders' processorOptions). */
+function wasmModule(m){
+  if (m.module instanceof WebAssembly.Module) return m.module;
+  try { return m.bytes ? new WebAssembly.Module(m.bytes) : null; } catch (e){ return null; }
+}
 
 const LOOKAHEAD = 0.12;      // seconds: how far ahead a step is decided (MIDI needs this lead)
 const START_DELAY = 0.06;    // seconds between pressing Play and the first step
@@ -48,21 +57,24 @@ class SporesEngine extends AudioWorkletProcessor {
     this.tmpL = new Float32Array(128); this.tmpR = new Float32Array(128); this.mono = new Float32Array(128);
     this.rnd = 0x9e3779b9;
     this.clips = new Map(); this.tapes = new Map(); this.clicks = new Clicks(sampleRate); this.runStep = 0;
+    this.fx = new FxHost(sampleRate);
     this.inputOn = false; this.lvl = {pk: 0, sq: 0, n: 0, blocks: 0}; this.rec = null; this.ping = null;
     this.port.onmessage = e => this.msg(e.data);
     // processorOptions {song, play, wasm, bufs}: start straight away (used by offline renders and tests, where port messages
     // only arrive after rendering)
     const o = opts && opts.processorOptions;
     if (o && o.wasm) pumpInit(o.wasm);
+    if (o && o.tfx) this.fx.init(o.tfx);
     if (o && o.song){ for (const c of o.clips || []) this.msg(Object.assign({t: 'clip'}, c)); this.msg({t: 'song', song: o.song}); for (const b of o.bufs || []) this.msg(Object.assign({t: 'buf'}, b)); if (o.play) this.msg(Object.assign({t: 'play'}, o.play)); }
   }
 
   msg(m){
-    if (m.t === 'song'){ this.song = m.song; this.syncVoices(); }
+    if (m.t === 'song'){ this.song = m.song; this.syncVoices(); this.fx.sync(m.song.tracks, m.song.bpm); }
+    else if (m.t === 'tfx'){ const ok = this.fx.init(wasmModule(m)); if (ok) this.fx.wake(); this.port.postMessage({t: 'tfx', ok}); }
     else if (m.t === 'play') this.start(m);
     else if (m.t === 'stop') this.stop();
     else if (m.t === 'scene') this.pendingScene = m.scene;
-    else if (m.t === 'wasm'){ if (pumpInit(m.module) && this.song) this.syncVoices(); this.port.postMessage({t: 'wasm', ok: !!m.module && pumpInit(m.module)}); }
+    else if (m.t === 'wasm'){ const mod = wasmModule(m); if (pumpInit(mod) && this.song) this.syncVoices(); this.port.postMessage({t: 'wasm', ok: !!mod && pumpInit(mod)}); }
     else if (m.t === 'buf'){ const v = this.voices.get(m.id); if (v && v.bufs) v.bufs.set(m.note, m.data); }
     else if (m.t === 'cvtest'){ if (m.value == null) this.cvHold.delete(m.ch); else this.cvHold.set(m.ch, m.value); }
     else if (m.t === 'clip') this.clips.set(m.id, m.data);
@@ -71,7 +83,7 @@ class SporesEngine extends AudioWorkletProcessor {
     else if (m.t === 'record') this.recordStart(m);
     else if (m.t === 'recstop') this.recordStop(m);
     else if (m.t === 'ping') this.pingStart(m);
-    else if (m.t === 'peek') this.port.postMessage({t: 'peek', clips: [...this.clips.keys()],   // (tests / debugging)
+    else if (m.t === 'peek') this.port.postMessage({t: 'peek', clips: [...this.clips.keys()], fx: this.fx.count,   // (tests / debugging)
       songStep: this.songStep, tapes: Object.fromEntries([...this.tapes].map(([id, v]) => [id, v.cur ? v.cur.id : null])), recording: !!this.rec});
     else if (m.t === 'hit'){ const tr = this.song && this.song.tracks[m.ti]; if (tr) this.trigger(m.ti, currentFrame, m.note, m.vel, (m.len || 0.25) * sampleRate); }
   }
@@ -129,13 +141,13 @@ class SporesEngine extends AudioWorkletProcessor {
       for (let k = 0; k < 4; k++) this.clicks.add(this.nextFrame + k * beat, k ? 'click' : 'accent');
       this.nextFrame += 4 * beat;
     }
-    this.playing = true;
+    this.playing = true; this.fx.start(this.nextFrame);
     this.port.postMessage({t: 'start', time: this.nextFrame / sampleRate});
   }
 
   stop(){
     if (!this.playing) return;
-    this.playing = false;
+    this.playing = false; this.fx.stop();
     if (this.rec && this.rec.kind === 'song') this.rec.cap.finish(currentFrame + this.rec.lat);   // kept: it ends here
     else if (this.rec) this.recordEnd('cancelled');
     for (const v of this.tapes.values()) v.release();
@@ -341,6 +353,7 @@ class SporesEngine extends AudioWorkletProcessor {
     const CV = outputs[1] || []; for (const ch of CV) ch.fill(0);
     if (this.playing && this.song) while (this.nextFrame < f0 + n + LOOKAHEAD * sampleRate) this.announce();
     if (!this.song) return true;
+    for (const c of this.fx.chains.values()){ c.L.fill(0); c.R.fill(0); }   // tracks with effects play into their own buffers
     // render in pieces between queued events, so every hit lands on its own sample
     let a = 0;
     while (a < n){
@@ -353,7 +366,13 @@ class SporesEngine extends AudioWorkletProcessor {
     this.clicks.render(L, R, f0, n);
     for (const [ch, val] of this.cvHold) if (CV[ch]) CV[ch].fill(val);   // Tune CV / Test outputs win
     // pump voices run the whole block at once (their notes were sent with their offset in it)
-    this.song.tracks.forEach(tr => { const v = this.voices.get(tr.id); if (v && v.pump) v.pump.render(L, R, n, (tr.vol ?? 0.8) * 0.9); });
+    this.song.tracks.forEach(tr => { const v = this.voices.get(tr.id); if (!v || !v.pump) return; const c = this.fx.buffers(tr.id);
+      if (c) v.pump.render(c.L, c.R, n, 0.9); else v.pump.render(L, R, n, (tr.vol ?? 0.8) * 0.9); });
+    // the track effects (fxhost.js), then volume / mute / solo after them
+    if (this.fx.chains.size){
+      const solo = this.song.tracks.some(t => t.solo), Rx = R !== L ? R : this.tmpR;
+      for (const tr of this.song.tracks) if (this.fx.has(tr.id)) this.fx.run(tr.id, L, Rx, n, f0, (solo ? !tr.solo : tr.mute) ? 0 : (tr.vol ?? 0.8));
+    }
     for (let i = 0; i < n; i++){ L[i] = Math.tanh(L[i]); if (R !== L) R[i] = Math.tanh(R[i]); }   // gentle master clip
     return true;
   }
@@ -376,15 +395,18 @@ class SporesEngine extends AudioWorkletProcessor {
     if (++l.blocks >= 6){ this.port.postMessage({t: 'level', peak: l.pk, rms: Math.sqrt(l.sq / l.n)}); l.pk = l.sq = l.n = l.blocks = 0; }
   }
 
-  renderVoices(L, R, a, b){
+  renderVoices(L0, R0, a, b){
+    const L = L0, R = R0;
     const s = this.song, mono = this.mono, tL = this.tmpL, tR = this.tmpR;
     if (this.tapes.size){
       const solo = s.tracks.some(t => t.solo);
-      for (const tr of s.tracks){ const v = this.tapes.get(tr.id); if (v && v.busy) v.render(L, R, a, b, this.tapeLevel(tr, solo)); }
+      for (const tr of s.tracks){ const v = this.tapes.get(tr.id); if (!v || !v.busy) continue; const c = this.fx.buffers(tr.id);
+        if (c) v.render(c.L, c.R, a, b, this.rec && this.rec.trackId === tr.id ? 0 : 0.9);   // (mute / solo / volume: after its effects)
+        else v.render(L, R, a, b, this.tapeLevel(tr, solo)); }
     }
     s.tracks.forEach(tr => {
       const v = this.voices.get(tr.id); if (!v) return;
-      const g = (tr.vol ?? 0.8) * 0.9;
+      const c = this.fx.buffers(tr.id), L = c ? c.L : L0, R = c ? c.R : R0, g = c ? 0.9 : (tr.vol ?? 0.8) * 0.9;   // with effects: volume after them
       if (v.drum){
         if (!v.drum[0].on && !v.drum[1].on) return;
         mono.fill(0, a, b); v.drum[0].render(mono, a, b, g); v.drum[1].render(mono, a, b, g);

@@ -19,6 +19,7 @@ import {createRecorder} from './recorder.js';
 import {getClip} from '../audiostore.js';
 import {clipIds} from '../store.js';
 import {songMap} from '../songmap.js';
+import {isFxType, MAX_FX} from './fx.js';
 
 export const STEPS_PER_BAR = 16;
 
@@ -36,6 +37,9 @@ export function compile(song, opts = {}){
       o.take = k && k.id ? {id: k.id, sr: k.sr || 48000, bpm: k.bpm || 120, startBar: Math.max(0, k.startBar | 0), gain: k.gain ?? 1,
         fadeIn: k.fadeIn || 0, fadeOut: k.fadeOut || 0, trimStart: k.trimStart || 0, trimEnd: k.trimEnd || 0} : null;
     }
+    // track effects (fx.js / fxhost.js): drum, synth and audio tracks only (MIDI and CV make no sound here)
+    if ((t.type === 'drum' || t.type === 'synth' || t.type === 'audio') && Array.isArray(t.fx))
+      o.fx = t.fx.filter(f => f && isFxType(f.type)).slice(0, MAX_FX).map((f, i) => ({id: String(f.id || i), type: f.type, on: f.on !== false, p: Object.assign({}, f.p)}));
     if (t.type === 'cv'){ const cv = t.cv || {}; o.cvPitch = (cv.pitch | 0) - 1; o.cvGate = (cv.gate | 0) - 1; o.gateV = gateValue(fs); }
     return o;
   });
@@ -83,8 +87,16 @@ export async function createEngine(){
 
   // the pump instruments' sound code: compiled here, handed to the worklet (it can't fetch). Without it, COIL / ORBIT /
   // FOLD / BOING tracks are silent and everything else plays as usual.
-  const wasmReady = fetch(new URL('./pump-synth.wasm', import.meta.url)).then(r => r.arrayBuffer()).then(b => WebAssembly.compile(b))
-    .then(module => { node.port.postMessage({t: 'wasm', module}); return true; }).catch(e => { console.warn('pump-synth.wasm', e); return false; });
+  // (the bytes are sent and compiled there: Chrome refuses a compiled Module posted into a realtime AudioWorklet)
+  const sendWasm = (file, t) => fetch(new URL(file, import.meta.url)).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then(bytes => new Promise(res => {
+      const f = e => { if (e.data && e.data.t === t){ node.port.removeEventListener('message', f); res(!!e.data.ok); } };
+      node.port.addEventListener('message', f); node.port.postMessage({t, bytes}, [bytes]);
+    })).catch(e => { console.warn(file, e); return false; });
+  const wasmReady = sendWasm('./pump-synth.wasm', 'wasm');
+
+  // the track effects' sound code (tfx.wasm, from ...Thunder Plus): without it, effects pass the sound through unchanged
+  const fxReady = sendWasm('./tfx.wasm', 'tfx');   // true once the worklet has made its two instances
 
   /* Modal / Scanned: every note a track uses is recorded in a Worker and sent to the worklet. A track's recordings
      are keyed by its settings; when they change, the notes are recorded again (a moment after the last change, so
@@ -175,7 +187,7 @@ export async function createEngine(){
     ctx, node, toPerf,
     get playing(){ return playing; },
     on(k, f){ subs[k].push(f); return () => { subs[k] = subs[k].filter(g => g !== f); }; },
-    wasmReady,
+    wasmReady, fxReady,
     setSong(s){
       song = s; compiled = compile(s, {fs: cvFs}); node.port.postMessage({t: 'song', song: compiled}); syncClips(s);
       clearTimeout(recTimer); recTimer = setTimeout(() => planRecordings(compiled), rec.size ? 150 : 0);
