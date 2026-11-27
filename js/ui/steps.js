@@ -17,6 +17,8 @@ import {mountFileMenu} from './filebar.js';
 import {openHelp} from './help.js';
 import {fileTag} from './filetag.js';
 import {nudgeNote} from './stepedit.js';
+import {attachNoteDrag, mountNoteKeys} from './notedrag.js';
+import {previewStep} from './preview.js';
 import {audioLane} from './audiolane.js';
 import {createRecStatus} from './recstatus.js';
 import {el} from './dom.js';
@@ -257,7 +259,15 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   function moveNote(by){
     const t = store.get().tracks[state.track];
     if (!t || t.type === 'drum' || t.type === 'audio' || state.step == null) return;
-    nudgeNote(store, {scene: state.scene, trackId: t.id, index: state.step}, by);
+    const where = {scene: state.scene, trackId: t.id, index: state.step};
+    nudgeNote(store, where, by);
+    previewStep(engine, store, where);
+  }
+
+  // {scene, trackId, index} of a step on a melodic (not drum / audio) track, else null
+  function melodicWhere(ti, i){
+    const t = store.get().tracks[ti];
+    return t && t.type !== 'drum' && t.type !== 'audio' ? {scene: state.scene, trackId: t.id, index: i} : null;
   }
 
   function toggleStep(ti, i){
@@ -270,6 +280,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       lane[i] = cur && cur.on ? Object.assign({}, cur, {on: false})
         : Object.assign({deg: 0, vel: 100, chance: 100}, cur || {}, {on: true});
     });
+    previewStep(engine, store, {scene: sceneKey, trackId: t.id, index: i});   // a step just switched on plays once
   }
 
   /* ---- drawing ---- */
@@ -466,6 +477,9 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   // tap = on / off; hold 400 ms or right-click = select the step for the panel
   function bindCell(b, ti, i){
     let timer = 0, held = false;
+    // dragging a note step up / down changes its pitch (js/ui/notedrag.js); that is not a tap, so no toggle
+    const drag = attachNoteDrag(b, {store, engine, onStart: () => { clearTimeout(timer); selectStep(ti, i); },
+      where: () => melodicWhere(ti, i)});
     b.addEventListener('pointerdown', e => {
       if (e.button === 2) return;
       held = false;
@@ -477,6 +491,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     b.addEventListener('pointercancel', up);
     b.addEventListener('click', () => {
       clearTimeout(timer);
+      if (drag.wasDrag()) return;
       if (held){ held = false; return; }   // it was a hold, not a tap
       toggleStep(ti, i);
     });
@@ -559,6 +574,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     else if (k === 'y'){ e.preventDefault(); store.redo(); }
   });
 
+  mountNoteKeys({store, engine, current: () => !root.hidden && state.step != null ? melodicWhere(state.track, state.step) : null});   // ↑ / ↓
   trackMeters(engine, tracksEl);
   mountClipboard({store, state, goScene, selectTrack, scenesEl, tracksEl});   // right-click: copy / paste scenes and tracks
   engine.on('start', () => { playBtn.classList.add('on'); playBtn.textContent = '■ Stop'; playBtn.setAttribute('aria-pressed', 'true'); });

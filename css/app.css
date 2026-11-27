@@ -194,6 +194,7 @@ p { margin: 0; }
   border-radius: var(--radius); background: var(--step); font-size: 12px; font-weight: 600; cursor: pointer; position: relative; }
 .cell.dk { background: var(--step-beat); }
 .cell:hover { background: var(--track); }
+.lane.synth .cell, .lane.midi .cell, .lane.cv .cell { touch-action: pan-x; }   /* a vertical drag moves the note (notedrag.js) */
 .cell.beatstart { margin-left: 4px; }
 .cell.barstart { margin-left: 12px; }
 .cell.on, .cell.on:hover { background: linear-gradient(var(--top, var(--rowc)), var(--bottom, var(--rowc))); color: var(--txt, var(--panel)); }

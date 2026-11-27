@@ -13,6 +13,7 @@
 import {trackColour, openColourPicker} from './trackcolor.js';
 import {ENGINES, SOUNDS, settingsFor} from '../engine/sounds.js';
 import {degToMidi, midiName} from '../scale.js';
+import {previewStep} from './preview.js';
 import {nudgeNote, setChance, setVelocity, stepAt} from './stepedit.js';
 import {SOUND_LISTS, isSongTrack} from '../store.js';
 import {ask, openDialog} from './dialog.js';
@@ -344,9 +345,9 @@ export function mountPanel(root, {store, engine, state, rec, openSong}){
     // Note: ▲ ▼ move it a scale step, so it stays in key. Drums have no pitch, so this row hides.
     const noteVal = el('span', {class: 'pval num'}, '—');
     const noteUp = el('button', {class: 'tb', title: 'Up one scale step', 'aria-label': 'Note up',
-      onclick: () => nudgeNote(store, where(), 1)}, '▲');
+      onclick: () => { nudgeNote(store, where(), 1); previewStep(engine, store, where()); }}, '▲');
     const noteDown = el('button', {class: 'tb', title: 'Down one scale step', 'aria-label': 'Note down',
-      onclick: () => nudgeNote(store, where(), -1)}, '▼');
+      onclick: () => { nudgeNote(store, where(), -1); previewStep(engine, store, where()); }}, '▼');
     const noteRow = el('div', {class: 'prow'}, el('span', {class: 'plabel'}, 'Note'),
       el('span', {class: 'nudge'}, noteUp, noteDown), noteVal);
     noteRow.hidden = t.type === 'drum';

@@ -1,9 +1,10 @@
 /* js/ui/filebar.js: the File menu — Save, Save as…, Save a copy…, Open…, Open Recent (desktop app), New song,
- * Export… (js/ui/export.js), Seeds link…, Skin…. The saving itself is in js/ui/savefile.js; each row shows its keyboard shortcut, muted.
+ * Export… (js/ui/export.js), Seeds link…, Skin…, Preview on click (a tick; stays open). The saving itself is in js/ui/savefile.js; each row shows its keyboard shortcut, muted.
  * Opening and New song ask first and go through store.replace / store.load, so Undo brings the old song back.
  */
 import {openSeedsLink} from './link.js';
 import {openSkinDialog} from './skin.js';
+import {previewOn, setPreview} from './preview.js';
 import {el} from './dom.js';
 
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
@@ -25,7 +26,11 @@ export function mountFileMenu(host, {store, files, scene}){
     item('Save a copy…', () => files.saveCopy()), item('Open…', () => files.open(), 'O'));
   if (files.hasRecent) menu.append(recentBtn, recentBox);
   if (files.exportAudio) menu.append(item('Export…', () => files.exportAudio(scene ? scene() : undefined)));
-  menu.append(item('New song', () => files.startNew()), item('Seeds link…', () => openSeedsLink(store)), item('Skin…', openSkinDialog));
+  const prev = el('button', {role: 'menuitemcheckbox', onclick: () => { setPreview(!previewOn()); paintPrev(); }},
+    el('span', {}, 'Preview on click'), el('span', {class: 'kbd'}));
+  const paintPrev = () => { prev.setAttribute('aria-checked', String(previewOn())); prev.lastChild.textContent = previewOn() ? '✓' : ''; };
+  paintPrev();
+  menu.append(item('New song', () => files.startNew()), item('Seeds link…', () => openSeedsLink(store)), item('Skin…', openSkinDialog), prev);
   host.append(btn, menu);
 
   async function fillRecent(){
