@@ -2,6 +2,22 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — PLAN (not started): up to 4 effects per track from Thunder Plus (🔴 engine work: Claude)
+- **Source (read only, don't change Thunder Plus):** `thunder-plus/waves/dsp/tfx.wasm` (674 KB): Thunder's native C++
+  track-effects host compiled to WebAssembly. 34 effects (Mutable Instruments Rings / Clouds / Beads / Warps, Airwindows
+  Density / ToTape6 / EQ / Galactic / Verbity2 / ToVinyl4 / Tube2 …, DaisySP chorus / flanger / phaser / overdrive /
+  autowah / pitch / ladder …, CloudSeed, plus Thunder's own comp / reverb / delay / gate / OTT / comb / shift…), all MIT.
+  API: `tfx_new(type, sr)` → handle, `tfx_params(h)` → 12 floats (0–1) in wasm memory, `tfx_l/r()` 128-sample buffers,
+  `tfx_process(h, n)`, `tfx_free(h)`. Host code to copy: `waves/waves-worklet.js` ~line 340–380 (create / process /
+  crash-bypass / memory-grew handling). Names, parameter labels, ranges and maps: the FX table in Thunder Plus
+  `index.html` (~line 4457 onward, `rvMix` etc.). Sources and build: `beta/dsp/tfx/` (build.sh, WASI SDK).
+- **Limit:** one module instance holds 32 effects; 16 tracks × 4 = 64, so run two instances (no rebuild needed).
+- **Plan:** (1) engine: copy tfx.wasm + a `js/engine/fx.js` table (plain-English names, groups, 2–4 main knobs each);
+  per track, a chain of up to 4 after the voice, in the worklet; render test (each effect: signal out, no NaN, no
+  clicks, timing unchanged). (2) data: `track.fx = [{type, on, p:{…}}]` (≤4), bump `v` to 2 with a migration.
+  (3) panel: an Effects section (Add effect ▾ grouped, on/off, knobs, ‹ › order, remove asks / Undo); Simple shows
+  each effect's main knob, More shows all. (4) THIRD_PARTY_NOTICES.md credits (MIT). (5) desktop build + release.
+
 ## 2026-11-26 — visual polish pass: calmer, more professional (Claude)
 - **Done:** empty steps are soft fills (`--step`, every other group of four `--step-beat`), no black outlines; track rows
   are hairline-separated and exactly one lane (`--lane`) tall; M / S are small boxes inside 44 px buttons (solo uses the new
