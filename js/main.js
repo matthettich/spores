@@ -11,6 +11,7 @@ import {gcClips} from './audiostore.js';
 import {clipIds} from './store.js';
 import {keepTake, keepSongTake} from './takes.js';
 import {openExport} from './ui/export.js';
+import {mountFlare} from './ui/flare.js';
 
 const store = createStore(undefined, {
   onSaveError: () => toast('This browser won’t keep the song (private window or full). Use File › Save to keep it in a file.'),
@@ -56,6 +57,7 @@ bindFileKeys(files);
 files.exportAudio = scene => openExport({store, files, scene: scene || steps.scene});
 const steps = mountSteps(stepsEl, {store, engine, midi, files, openSong: () => show('song')});
 const song = mountSong(songEl, {store, engine, files, openSteps: () => show('steps')});
+songEl.append(mountFlare({engine, store}).node);   // the animated strip under the Song screen (js/ui/flare.js)
 
 function show(name){
   stepsEl.hidden = name !== 'steps';
