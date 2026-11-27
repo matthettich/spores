@@ -2,6 +2,49 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — PLAN (not started): Save, audio tracks, export (owner's request)
+Order: **A Save** (audio can't live in localStorage, so it comes first) → **B audio tracks** → **C export** (needs an
+offline render that already knows audio tracks and the effects from the plan below). 🔴 = engine work (Claude).
+
+**A. Save (File › Save, Cmd/Ctrl+S).** Today: autosave to localStorage + Save a copy… (a download) + Open.
+- Save asks where the first time, then writes the same file silently; Save as… for a new file; Save a copy… stays.
+  The title shows the song's file name and a dot while there are unsaved changes; closing the desktop app with unsaved
+  changes asks first. Autosave stays, as crash recovery, not as the save.
+- Desktop: native Save / Open dialogs and file writes through preload IPC (fs in main.js), Open Recent, later
+  double-click a song file to open it. Chrome: File System Access (showSaveFilePicker / showOpenFilePicker, handle kept
+  in IndexedDB); download fallback.
+- Format: `.spores` = a zip (stored, no compression, own ~100-line writer/reader, no npm) of `song.json` +
+  `audio/<clip-id>.wav`. Open still takes the old `.json` files. Song `v` → 2 (or 3 if effects land first), migrated.
+
+**B. Audio tracks (record her voice, a few layers).**
+- New track type `audio`, up to 4 to start (one constant to raise later), within the 16 tracks. Colour: teal (audio).
+- A take is a loop of 1, 2, 4 or 8 bars that plays in time with the sequencer from the scene's start, looping for as
+  long as the scene runs. Proposed: one take per audio track per scene (like steps), stored as
+  `scene.clips[trackId] = {id, bars, bpm, sr, gain, offset, fadeIn, fadeOut}`; the samples live in IndexedDB (browser
+  and app autosave) and in the `.spores` file (Save). Undo keeps old takes until they leave the history.
+- Recording: pick the input (Mac mic or interface) once; a level meter; arm ● on the track, Record: one bar of
+  count-in click, records exactly the loop length, then stops (or "keep going" records the next take; Undo goes back).
+  echoCancellation / noiseSuppression / autoGainControl off; mono in, played centre. Headphones advised; listening
+  to herself while recording (monitoring) off by default.
+- Timing 🔴: record in the worklet against the engine's clock (not MediaRecorder), and correct for input + output
+  latency, measured once with a short "tap test" (like Tune CV). Clips go to the worklet by transfer over the port
+  (no SharedArrayBuffer: GitHub Pages can't send COOP/COEP). 4 tracks × 8 bars at 120 BPM ≈ 12 MB: fine.
+- Tempo change after recording: decide (owner): play at the new speed (pitch moves, simple) or keep pitch
+  (time-stretch, harder; later). Proposed: varispeed first, with a note in the panel.
+- Panel: Simple = big Record, input level, loop length, Volume. More = start offset, gain, fade in / out, reverse,
+  latency. Effects (plan below) apply to audio tracks too: reverb / delay on a voice is the obvious first use.
+
+**C. Export (File › Export…).**
+- Song as WAV (the arrangement once, plus the reverb / delay tail), Scene as WAV (the current scene × N), and Stems
+  (one WAV per track + the mix, in a folder in the app or a zip in Chrome). 48 kHz, 24-bit. MIDI / CV tracks are
+  skipped (they make no sound here). Progress bar and Cancel.
+- 🔴 Offline render: the same worklet in an OfflineAudioContext (faster than real time, identical sound, no clicks
+  from a busy computer); stems = one pass per track with the others muted (simple), or per-track outputs later.
+- Later, if wanted: MP3 / AAC (needs an encoder; not in the no-npm app), loudness-normalised export (…pump?).
+
+**Questions for the owner before B:** one take per scene (proposed) or one per track for the whole song? Varispeed
+on tempo change OK? Her microphone: the Mac's or an interface? Should she hear herself while recording?
+
 ## 2026-11-26 — PLAN (not started): up to 4 effects per track from Thunder Plus (🔴 engine work: Claude)
 - **Source (read only, don't change Thunder Plus):** `thunder-plus/waves/dsp/tfx.wasm` (674 KB): Thunder's native C++
   track-effects host compiled to WebAssembly. 34 effects (Mutable Instruments Rings / Clouds / Beads / Warps, Airwindows
