@@ -19,7 +19,7 @@ offline render that already knows audio tracks and the effects from the plan bel
 **B. Audio tracks (record her voice, a few layers).**
 - New track type `audio`, up to 4 to start (one constant to raise later), within the 16 tracks. Colour: teal (audio).
 - A take is a loop of 1, 2, 4 or 8 bars that plays in time with the sequencer from the scene's start, looping for as
-  long as the scene runs. One take per audio track for the whole song (owner, see answers below), stored on the track; the samples live in IndexedDB (browser
+  long as the scene runs. One take per audio track per scene (owner, see answers below); the samples live in IndexedDB (browser
   and app autosave) and in the `.spores` file (Save). Undo keeps old takes until they leave the history.
 - Recording: pick the input (Mac mic or interface) once; a level meter; arm ● on the track, Record: one bar of
   count-in click, records exactly the loop length, then stops (or "keep going" records the next take; Undo goes back).
@@ -53,12 +53,17 @@ offline render that already knows audio tracks and the effects from the plan bel
 Copy and adapt into small Spores files (AGENTS.md: under ~600 lines each, plain-English labels, Spores' look); keep
 credits for anything third-party.
 
-**Owner's answers (2026-11-26):** one take per audio track for the whole song (not per scene): stored on the
-track (`track.clip = {id, bars, bpm, sr, gain, offset, fadeIn, fadeOut}`), looping under every scene; the track's
-existing Mute (and, later if wanted, an "off in this scene" switch) silences it where it shouldn't play. Tempo change
-after recording: varispeed, pitch may move. Input: either the Mac's mic or an interface, so an input picker (and an
-input channel choice for multi-input interfaces) is needed. Monitoring: a "Hear myself" toggle, off by default (with
-a one-line note to wear headphones).
+**Owner's answers (2026-11-26, corrected):** loop takes are **one per audio track per scene** (like steps):
+`scene.clips[trackId] = {id, bars, bpm, sr, gain, offset, fadeIn, fadeOut}`; a scene with no take for a track is
+silent on it. Tempo change after recording: varispeed, pitch may move. Input: the Mac's mic or an interface, so an
+input picker (plus an input-channel choice on multi-input interfaces). Monitoring: a "Hear myself" toggle, off by
+default (with a one-line note to wear headphones).
+**Plus song-length audio (owner):** a second kind of audio track that spans the whole song, shown as a layer (lane)
+on the Song screen under the scene blocks, not in the Steps grid. Recorded while the song plays (from the start, or
+from a block), it runs across the scene changes and stops at the song's end; Loop-forever blocks don't apply to it.
+Stored on the track (`track.take = {id, sr, bpm, startBar, gain, fadeIn, fadeOut}`), drawn as a waveform aligned to
+the blocks, with move (start bar), trim and fades in More. Same input picker, latency correction, Hear myself, Undo,
+`.spores` storage and export (stems include it). Build after loop takes, reusing their recording code.
 
 ## 2026-11-26 — PLAN (not started): up to 4 effects per track from Thunder Plus (🔴 engine work: Claude)
 - **Source (read only, don't change Thunder Plus):** `thunder-plus/waves/dsp/tfx.wasm` (674 KB): Thunder's native C++
