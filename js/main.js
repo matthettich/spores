@@ -6,9 +6,10 @@ import {mountSteps} from './ui/steps.js';
 import {mountSong} from './ui/song.js';
 import {applyCvSettings} from './ui/cv.js';
 import {toast} from './ui/dialog.js';
+import {createSaveFile, bindFileKeys} from './ui/savefile.js';
 
 const store = createStore(undefined, {
-  onSaveError: () => toast('This browser won’t keep the song (private window or full). Use File › Save a copy… to keep it.'),
+  onSaveError: () => toast('This browser won’t keep the song (private window or full). Use File › Save to keep it in a file.'),
 });
 // The AudioContext starts suspended; the first Play (a click) resumes it.
 let engine;
@@ -43,8 +44,10 @@ songEl.className = 'screen';
 songEl.hidden = true;
 app.append(stepsEl, songEl);
 
-const steps = mountSteps(stepsEl, {store, engine, midi, openSong: () => show('song')});
-const song = mountSong(songEl, {store, engine, openSteps: () => show('steps')});
+const files = createSaveFile({store});
+bindFileKeys(files);
+const steps = mountSteps(stepsEl, {store, engine, midi, files, openSong: () => show('song')});
+const song = mountSong(songEl, {store, engine, files, openSteps: () => show('steps')});
 
 function show(name){
   stepsEl.hidden = name !== 'steps';
@@ -74,4 +77,4 @@ engine.on('stop', () => { steps.stopped(); song.stopped(); });
 // MIDI is optional: without it (or if the browser says no), Spores still plays its own sounds.
 midi.init().then(ok => { if (ok) midi.attach(engine, store.get); });
 
-window.spores = {store, engine, midi, show};   // for the console and tests
+window.spores = {store, engine, midi, show, files};   // for the console and tests

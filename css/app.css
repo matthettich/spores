@@ -66,6 +66,10 @@ p { margin: 0; }
 
 /* header: name · screen switch | transport | key | scene ······ undo / redo · File · mode · help */
 .hdr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px clamp(10px, 1.25vw, 22px); padding: 10px clamp(10px, 1.1vw, 16px); border-bottom: 1px solid var(--edge); }
+.fname { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; max-width: clamp(90px, 14vw, 220px); color: var(--muted); font-size: 13px; }
+.fname-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fdot { color: var(--gate); font-weight: 700; }
+.hdr > .fname { flex-shrink: 1; }
 .app-name { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
 .hgroup { display: flex; align-items: center; gap: 6px; }
 .hspace { flex: 1 1 0; min-width: 0; }
@@ -220,6 +224,11 @@ p { margin: 0; }
   border-radius: var(--radius); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 14%, transparent); }
 .menu button { min-height: var(--touch); padding: 6px 12px; text-align: left; font-weight: 500; background: transparent; border: 0; border-radius: var(--radius); cursor: pointer; }
 .menu button:hover { background: var(--panel-2); }
+.menu button { display: flex; justify-content: space-between; align-items: center; gap: 24px; white-space: nowrap; }
+.menu button:disabled { color: var(--muted); cursor: default; }
+.menu .kbd { color: var(--muted); font-size: 12px; font-weight: 400; }
+.menusub { display: flex; flex-direction: column; gap: 2px; padding-left: 12px; max-width: 300px; }
+.menusub button { display: block; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
 .menu.up { top: auto; bottom: calc(100% + 4px); right: auto; left: 0; }
 .checkrow { display: flex; align-items: center; gap: 10px; min-height: var(--touch); font-size: 13px; cursor: pointer; }
 .checkrow input[type=checkbox] { min-height: 0; width: 22px; height: 22px; margin: 0; accent-color: var(--ink); }

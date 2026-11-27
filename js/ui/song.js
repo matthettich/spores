@@ -10,13 +10,14 @@ import {noteColor} from '../scale.js';
 import {el} from './dom.js';
 import {ask, toast} from './dialog.js';
 import {openHelp} from './help.js';
+import {fileTag} from './filetag.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const bars = sc => clamp((sc && sc.bars) | 0 || 1, 1, 4);
 const sceneLen = sc => bars(sc) * STEPS_PER_BAR;
 const repeatOf = b => clamp((b && b.repeat) | 0 || 1, 1, 64);
 
-export function mountSong(root, {store, engine, openSteps}){
+export function mountSong(root, {store, engine, files, openSteps}){
   let playing = false;
   let pos = {block: 0, rep: 0, counter: 0, live: false};
   let dragFrom = null;                        // the block being dragged, while it is dragged
@@ -35,7 +36,7 @@ export function mountSong(root, {store, engine, openSteps}){
 
   // the same left side as the Steps screen (js/ui/steps.js): name, Steps | Song, then Play and the tempo
   const header = el('header', {class: 'hdr'},
-    el('span', {class: 'app-name'}, '...Spores'),
+    el('span', {class: 'app-name'}, '...Spores'), fileTag(files),
     el('div', {class: 'seg', role: 'group', 'aria-label': 'Screen'},
       el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Back to the steps', onclick: () => openSteps()}, 'Steps'),
       el('button', {class: 'tb on', 'aria-pressed': 'true', title: 'Arrange the scenes into a song'}, 'Song')),

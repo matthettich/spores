@@ -13,13 +13,14 @@ import {trackColour, openColourPicker} from './trackcolor.js';
 import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
 import {openHelp} from './help.js';
+import {fileTag} from './filetag.js';
 import {nudgeNote} from './stepedit.js';
 import {el} from './dom.js';
 
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-export function mountSteps(root, {store, engine, midi, openSong}){
+export function mountSteps(root, {store, engine, midi, files, openSong}){
   const state = {scene: 'A', track: 0, step: null};
 
   /* ---- header: Play, Tempo, Key + scale, scenes, Song / Undo, Simple / More ---- */
@@ -79,7 +80,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
 
   // the same left side on both screens (js/ui/song.js): name, Steps | Song, then Play and the tempo
   const header = el('header', {class: 'hdr'},
-    el('span', {class: 'app-name'}, '...Spores'),
+    el('span', {class: 'app-name'}, '...Spores'), fileTag(files),
     el('div', {class: 'seg', role: 'group', 'aria-label': 'Screen'},
       el('button', {class: 'tb on', 'aria-pressed': 'true', title: 'The step grid'}, 'Steps'),
       el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Arrange the scenes into a song', onclick: () => openSong()}, 'Song')),
@@ -151,7 +152,7 @@ export function mountSteps(root, {store, engine, midi, openSong}){
     swingWrap);   // More only; down here so the header stays on one row on a laptop
 
   root.append(header, workspace, bottom);
-  mountFileMenu(fileWrap, {store});
+  mountFileMenu(fileWrap, {store, files});
   const panel = mountPanel(panelEl, {store, engine, state});
 
   /* ---- actions ---- */
