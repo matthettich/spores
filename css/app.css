@@ -197,6 +197,7 @@ p { margin: 0; }
 
 /* right panel */
 .panel { overflow: auto; border-left: 1px solid var(--edge); padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.panel > * { flex-shrink: 0; }   /* a flex column that scrolls: its sections keep their own height instead of being squashed */
 .phead { padding-bottom: 6px; }
 .pheadrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pheadrow .tb { margin-right: -8px; }

@@ -905,5 +905,10 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
 - Tested: headless Chrome (meters move while playing, fall to 0 after Stop; ⧉ makes "Copy of Scene A" as C with the same
   steps; position line 3 → 99 % through the demo song then wraps; File menu lists all items on Song); engine, fx, export,
   audio and save checks all pass.
-- App icon is now a neon mushroom on black (glowing pink cap with a row of step-square spots, one lit cyan; spores rising like level meters). Source: desktop/build/icon.svg;
+- App icon is a mushroom in Thunder Plus' IDM pink & green skin colours (#e9e8e3 paper, #141414 ink, #ff2d8a pink, #1f9e5a green;
+  flat, offset ink shadows, step-square spots). Source: desktop/build/icon.svg;
   icon.png (1024×1024) is rendered from it (rsvg-convert -w 1024 -h 1024 icon.svg -o icon.png) and is what electron-builder uses.
+- Fix (desktop, laptop-height windows): "+ Add effect" seemed not to open. The panel (.panel) is a scrolling flex column, so
+  it squashed the open list (.fxmenu) to a ~10 px sliver below the button. Now `.panel > *` and `.fxmenu` don't shrink, and
+  the list scrolls into view when it opens. Tested in the Electron app (1440×873 window, real mouse clicks): the list opens
+  436 px tall and in view, picking Galaxy reverb adds it (card + "fx 1"); tests/fx-ui-check all ok.

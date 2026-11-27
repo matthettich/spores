@@ -19,7 +19,7 @@ export function fxSection(root, {store, t, mode}){
   let sig = '', open = false, refocus = null, cards = [];
   const list = el('div', {class: 'fxlist'});
   const menu = el('div', {class: 'fxmenu', hidden: true, role: 'menu'});
-  const addBtn = el('button', {class: 'tb fxadd', 'aria-haspopup': 'true', 'aria-expanded': 'false', onclick: () => { open = !open; paintMenu(); }}, '+ Add effect ▾');
+  const addBtn = el('button', {class: 'tb fxadd', 'aria-haspopup': 'true', 'aria-expanded': 'false', onclick: () => { open = !open; paintMenu(); if (open) menu.scrollIntoView({block: 'nearest'}); }}, '+ Add effect ▾');   // the list opens at the panel's foot: bring it into view
   const count = el('p', {class: 'note fxcount num', role: 'status'});
   root.append(el('div', {class: 'psec'}, 'Effects'),
     el('p', {class: 'note'}, 'Effects change this track’s sound, in order from top to bottom.'),

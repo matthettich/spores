@@ -1,5 +1,5 @@
 /* css/fx.css: the Effects section of the track panel (js/ui/fxpanel.js). Colours only from the :root tokens. */
-.fxlist { display: flex; flex-direction: column; gap: 10px; margin: 6px 0; }
+.fxlist { flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; margin: 6px 0; }
 .fxcard { border: 1px solid var(--track); background: var(--panel); border-radius: var(--radius); padding: 6px 8px 4px; }
 .fxcard.off .fxbody { opacity: .5; }
 .fxhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--touch); }
@@ -11,7 +11,7 @@
 .fxaddrow { margin-top: 4px; }
 .fxadd { width: 100%; }
 .fxcount { margin: 4px 0 0; }
-.fxmenu { margin-top: 6px; max-height: 50vh; overflow: auto; border: 1px solid var(--edge); background: var(--panel); border-radius: var(--radius); padding: 4px; display: flex; flex-direction: column; gap: 2px; }
+.fxmenu { flex-shrink: 0; margin-top: 6px; max-height: 50vh; overflow: auto; border: 1px solid var(--edge); background: var(--panel); border-radius: var(--radius); padding: 4px; display: flex; flex-direction: column; gap: 2px; }  /* flex-shrink: the panel is a flex column; without it the open list is squashed to a sliver */
 .fxmenu[hidden] { display: none; }
 .fxgrp { margin-top: 8px; padding: 0 8px 2px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .fxgrp:first-child { margin-top: 2px; }
