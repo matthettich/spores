@@ -18,7 +18,7 @@
  * slider moves (Sound setting / Volume / Swing / Step velocity / Step chance within 600 ms) count as one step, so one
  * drag is one Undo — but only on the same target (edit's third argument, e.g. one step or one setting).
  */
-import {DRUM_NAMES, SYNTH_NAMES} from './engine/sounds.js';
+import {DRUM_NAMES, SYNTH_NAMES, settingsFor} from './engine/sounds.js';
 import {isFxType, fxClean, MAX_FX} from './engine/fx.js';
 
 // a track's chosen colour (none = by type: drums pink, synths teal…); the colours are --tc-<key> on :root
@@ -185,6 +185,14 @@ function fixTrack(t){
   t.midi = Object.assign({port: '', ch: 1, clock: false}, t.midi && typeof t.midi === 'object' ? t.midi : {});
   t.cv = Object.assign({pitch: 3, gate: 4, cal: null}, t.cv && typeof t.cv === 'object' ? t.cv : {});
   t.params = t.params && typeof t.params === 'object' && !Array.isArray(t.params) ? t.params : {};
+  if (t.type === 'drum' || t.type === 'synth'){   // keep only the sound's own settings, finite and in range (a bad value must not reach the voice)
+    const p = {};
+    for (const r of settingsFor(t.sound).all){
+      const v = t.params[r.s];
+      if (typeof v === 'number' && isFinite(v)) p[r.s] = Math.min(r.max, Math.max(r.min, r.int ? Math.round(v) : v));
+    }
+    t.params = p;
+  }
   if (typeof t.vol !== 'number' || !isFinite(t.vol)) t.vol = 0.8;
   if (typeof t.oct !== 'number') t.oct = 3;
   if (typeof t.len !== 'number') t.len = 0;
