@@ -60,7 +60,7 @@ t = await tag(p); ok(/Song/.test(t.title) && !t.dot, 'Ctrl+Shift+S saves as: ' +
 await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.startsWith('File')).click());
 const rows = await p.evaluate(() => [...document.querySelector('.menu-wrap .menu').querySelectorAll('button')].map(b => b.textContent));
 console.log('menu:', JSON.stringify(rows));
-ok(rows.length === 9 && /^SaveCtrl\+S$/.test(rows[0]) && /Ctrl\+Shift\+S/.test(rows[1]) && /Ctrl\+O/.test(rows[3]) && /^Export/.test(rows[4]), 'menu rows and shortcuts');
+ok(rows.length === 10 && /^SaveCtrl\+S$/.test(rows[0]) && /Ctrl\+Shift\+S/.test(rows[1]) && /Ctrl\+O/.test(rows[3]) && /^Export/.test(rows[4]), 'menu rows and shortcuts');
 await p.keyboard.press('Escape');
 // typing in a text field: no save
 const before = await p.evaluate(() => window.__writes.length);
@@ -80,7 +80,8 @@ for (const [w, h] of [[1280, 760], [1440, 830]]){
     await p.evaluate(s => window.spores.show(s), scr); await sleep(100);
     const m = await p.evaluate(() => { const hd = [...document.querySelectorAll('.hdr')].find(x => x.offsetParent); const r = hd.getBoundingClientRect(); const kids = [...hd.children].filter(c => c.offsetParent);
       const tops = new Set(kids.map(c => Math.round(c.getBoundingClientRect().top))); const f = hd.querySelector('.fname'); return {h: r.height, rows: [...tops].length, fw: f.getBoundingClientRect().width, overflow: hd.scrollWidth > hd.clientWidth + 1}; });
-    ok(m.h < 72 && !m.overflow && m.fw > 0, `${w}x${h} ${scr}: header h=${m.h} tops=${m.rows} fname w=${m.fw} overflow=${m.overflow}`);
+  // the file name is hidden at ≤1320 px on purpose (narrow-laptop header, 2026-11-27)
+    ok(m.h < 72 && !m.overflow && (w <= 1320 || m.fw > 0), `${w}x${h} ${scr}: header h=${m.h} tops=${m.rows} fname w=${m.fw} overflow=${m.overflow}`);
   }
 }
 await p.evaluate(() => { window.spores.files.state.setFile({name: 'A really quite long song name for checking truncation of the header.spores'}); window.spores.show('steps'); });
