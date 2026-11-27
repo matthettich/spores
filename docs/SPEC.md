@@ -26,6 +26,8 @@ js/ui/steps.js      Steps screen
 js/ui/song.js       Song screen
 js/ui/panel.js      right-hand track / step panel
 js/zip.js           tiny stored-zip writer / reader (crc32 from Thunder Plus)
+js/wav.js           WAV writer (32-bit float for takes, 16 / 24-bit PCM) and reader
+js/audiostore.js    recorded takes' samples by clip id (IndexedDB + memory); takes.js puts a take into the song
 js/ui/savefile.js   Save, Save as…, Save a copy…, Open…, Open Recent (desktop); Ctrl/Cmd+S / Shift+S / O
 js/ui/filestate.js  the current file, unsaved-changes dot, remembered Chrome file handle; filetag.js shows it in the header
 desktop/files.js    the desktop app's file channels (+ path-allow.js: only files the person picked)
@@ -38,6 +40,8 @@ js/engine/          🔴 Claude only: clock worklet, voices, CV out
   pump.js             COIL / ORBIT / FOLD / BOING played live from pump-synth.wasm (GENERATED: pump-meta.js)
   render-worker.js    records Modal / Scanned notes off the audio thread (GENERATED: rendered.js)
   cv.js               CV: note → voltage, the pitch detector, Tune CV and the DC check
+  tape.js             audio tracks in the worklet: loop-take playback, clicks, input capture
+  recorder.js         the input, level meter, Hear myself, latency test and record() (page side)
 js/ui/cv.js         a CV track's panel section, Tune CV… and Test outputs…
 tools/gen-sounds.mjs  re-copies the generated engine files from a Thunder Plus checkout
 tests/*.mjs           headless engine and sound checks (dev only, see each file)
@@ -58,11 +62,11 @@ the desktop app keeps the path and offers Open Recent and a Save / Don't save / 
 
 ```js
 song = {
-  v: 1,
+  v: 2,                              // 2: audio tracks (scene.clips); v1 files migrate
   bpm: 120, swing: 0,                // swing hidden behind More
   key: 'C', scale: 'minor', lock: true,
   tracks: [                          // 8 by default, + Add track up to 16
-    { id: 't1', name: 'Kick', type: 'drum',     // 'drum' | 'synth' | 'midi' | 'cv'
+    { id: 't1', name: 'Kick', type: 'drum',     // 'drum' | 'synth' | 'midi' | 'cv' | 'audio' (≤ 4, teal)
       sound: '909 Kick',             // drum / synth only
       midi: { port: '', ch: 1 },     // midi only
       cv: { pitch: 3, gate: 4, cal: null },     // cv only: output channels, calibration table
@@ -74,7 +78,9 @@ song = {
   ],
   scenes: {                          // A–H
     A: { name: 'Intro groove', bars: 1,
-         steps: { t1: [ { on: true, deg: 0, vel: 100, chance: 100 } /* × 16 × bars */ ] } }
+         steps: { t1: [ { on: true, deg: 0, vel: 100, chance: 100 } /* × 16 × bars */ ] },
+         clips: { t9: { id: 'c…', bars: 2, bpm: 120, sr: 48000, gain: 1, offset: 0,   // one loop take per audio track;
+                        fadeIn: 0.004, fadeOut: 0.004, reverse: false } } }            // samples: audiostore / audio/<id>.wav
   },
   song: [ { scene: 'A', repeat: 4 }, { scene: 'B', repeat: 2 } ],
   link: { seedsPort: '', seedsCh: 16, clock: true },

@@ -2,6 +2,68 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — audio tracks B1: engine + data for loop takes done (Claude agent, on `dev`, pushed)
+- **Done:** song `v` 2 (v1 migrates: every scene gets `clips: {}`). Track type `audio` (`MAX_AUDIO_TRACKS` 4,
+  `canAddAudio(song)`, `newTrack('audio')` = "Voice", teal by default). `scene.clips[trackId] = newClip({id, bars, bpm, sr})`
+  → `{id, bars 1|2|4|8, bpm, sr, gain 1, offset 0 s, fadeIn 0.004 s, fadeOut 0.004 s, reverse false}`. Samples live in
+  `js/audiostore.js` (IndexedDB `spores-audio` + memory) and in `.spores` files as `audio/<id>.wav` (32-bit float mono,
+  `js/wav.js`); Save writes only the takes the song refers to, Open puts them back before the song loads.
+  Engine: `js/engine/tape.js` + worklet changes (playback, count-in, capture, latency bursts), `js/engine/recorder.js`
+  (page side). Takes reach the worklet by transfer; the worklet holds exactly the takes the current song refers to.
+- **Playback rules:** a take loops from the scene's first sample (song mode: from the block's first sample; a block's
+  repeats run on through the take, so a 4-bar take in a 1-bar scene ×4 plays all 4 bars), re-synced on every step so
+  it can't drift; another tempo = varispeed (pitch moves). Mute / solo / volume as other tracks. A scene with no take
+  for a track is silent on it. The track being recorded is silent while recording (incl. its old take).
+- **API for the UI agent** (all on `engine`, i.e. `window.spores.engine`; put a take in the song with `keepTake`):
+  - `await engine.audioInputs()` → `[{deviceId, label}]` (labels are empty until the first `openInput`, browser rule).
+  - `await engine.openInput({deviceId, channel})` → `{ok, channels, channel, label, error}`; channel from 1; defaults
+    = the last choice (kept on this computer, localStorage `spores.rec`). `engine.closeInput()`. `engine.input` →
+    `{open, deviceId, channel, channels, label}`. `engine.on('input', m)` fires on open / close / `{lost: true}`.
+  - `engine.on('level', ({peak, rms, db, clip}) => …)` ~60 times a second while an input is open (peak 0…1).
+  - `engine.setMonitor(on)` / `engine.monitor` ("Hear myself", off by default, remembered).
+  - `engine.latency` → `{reportedMs, offsetMs, totalMs}`; `engine.setLatencyOffset(ms)` (the More "latency" nudge).
+    `await engine.measureLatency()` → `{ok, totalMs, reportedMs, offsetMs, jitterMs, found, error}`: 8 bursts 0.25 s
+    apart; needs the input to hear the output (headphones held to the mic, speakers, or a cable). Sets the offset.
+    Not while playing a song (it would hear the music too; the UI should Stop first).
+  - `const take = await engine.record({scene, track: trackId, bars, keepGoing, metronome, onTake})` → the last
+    finished take `{id, trackId, scene, data, sr, bars, bpm, n}` or null if stopped first. From Stop: plays the scene
+    with one bar of count-in, records `bars` from the scene's start, then keeps playing. While playing that scene:
+    count-in over the next bar, records from the bar line after. Playing something else (song mode, another scene):
+    stops it and starts as from Stop. `keepGoing`: takes follow one another; `onTake(take)` for each; ends with
+    `engine.stopRecording()` (the unfinished take is dropped) or Stop. `metronome`: clicks on the beats while recording.
+  - `engine.on('rec', m)`: `{state: 'count-in', countTime, startTime, endTime}` (context seconds; turn into a countdown
+    with `engine.toPerf`), `'recording'`, `'done'`, `'cancelled'`. `engine.recording` (bool).
+  - `keepTake(store, take)` (js/takes.js) = samples into audiostore + one `store.edit('Record take')` → Undo brings the
+    previous take back. Call it in `onTake` for keep going. `clearTake(store, scene, trackId)` removes one.
+  - `engine.on('missing', {id})`: a take the song refers to has no samples here (a file opened without them).
+  - Debug: `await spores.debugRecord({bars})` in the console (adds an audio track if none, default input, records,
+    keeps). `await engine.peekWorklet()` → what the worklet holds (tests).
+- **Tested:** new `tests/audio-check.mjs`, all 30 checks pass: offline, the first sample of a take lands on sample 2880
+  (the scene start) with its exact value, loops exactly on bar lines at 120; at 170 the loop start is within 0.01
+  sample of every bar line; a 120 BPM take in a 170 BPM song spans exactly one bar (within 0.02 sample); 2-bar take in
+  a 1-bar scene; song blocks; mute; reverse; the 4 ms fade. Real time, against a loop-back in the audio graph (engine
+  output → DelayNode → its input): the latency test finds the loop's delay to within 0.05 ms, recorded kicks land
+  within 0.05 ms of their steps from Stop, from mid-scene (turned round) and with keep going; rec states. Undo / Redo
+  swap the clip in the song and the worklet and Play uses it. Save → Open in a fresh browser profile restores the take
+  (IndexedDB + worklet), re-saving gives byte-identical WAVs; old v1 `.json` opens as v2. A fake input device opens,
+  gives level values, Hear myself toggles. Still pass: engine-check (170 BPM gaps exact, MIDI clock 20.83–20.86 ms),
+  sounds-check, cv-render-check, cv-check, zip-check, save-check, desktop-save-check (Electron, xvfb), updater,
+  path-allow. Existing screens with an audio track added: no errors (it shows as an empty lane: UI agent's job).
+- **Not tested:** a real microphone / interface, real speakers, a real Mac; the latency test through air; a
+  multi-channel interface's channel pick (the fake device has 2 channels; channel 1 tested); sample rates other than
+  44.1 / 48 kHz playing each other's takes (the maths is the same: varispeed by length).
+- **Decisions (owner may change):** a new take gets default gain / fades, not the old take's. Takes are never deleted
+  while the app runs (Undo may need them); at start-up, takes the autosaved song doesn't use are deleted (so a take
+  only in another open tab's song could go: Spores is one-tab). Takes stay in memory for the session (~0.7 MB per bar
+  at 48 kHz; long keep-going sessions grow). Recording uses the tempo at its start (a tempo change mid-take isn't
+  followed). The count-in is one bar of clicks at the song tempo, MIDI Start / clock begin after it.
+- **Odd:** a loop in the Web Audio graph adds one 128-frame block to the DelayNode's time (the test allows for it).
+  Headless Chrome reports 30 ms output latency at 44.1 kHz. `measureLatency` result goes into the offset, so
+  `latency.totalMs` = the measured round trip (as Thunder Plus: reported + offset).
+- **Not done (next):** B2 the UI (panel: Record, input picker + channel, level meter, loop length, Volume; More:
+  offset, gain, fades, reverse, latency + test; the Steps lane for an audio track showing the take); song-length
+  audio (`track.take`); export (C); Electron's `io-helper` native input (Spores uses the browser's input only).
+
 ## 2026-11-26 — Save (plan step A) done (Claude agent, on `dev`, not pushed)
 - **Done:** `.spores` files (a stored zip of `song.json`; `js/zip.js`, crc32 + headers adapted from Thunder Plus; the API is a
   list of `{name, bytes}` so `audio/<id>.wav` can join later: `build()` in `js/ui/savefile.js`). File menu: Save (Ctrl/Cmd+S;
@@ -28,7 +90,7 @@ Agents: add a dated entry when you stop. Newest at the top.
   file). The desktop app's recent list is the allow-list (last 64 kept, newest 8 shown, missing files hidden). Not done
   (later): double-click a `.spores` to open it, Chrome "Open Recent", a File menu on the Song screen.
 
-## 2026-11-26 — PLAN: Save, audio tracks, export (owner's request; step A done, B and C not started)
+## 2026-11-26 — PLAN: Save, audio tracks, export (owner's request; A done, B1 engine + data done, B2 UI and C not started)
 Order: **A Save** (audio can't live in localStorage, so it comes first) → **B audio tracks** → **C export** (needs an
 offline render that already knows audio tracks and the effects from the plan below). 🔴 = engine work (Claude).
 
