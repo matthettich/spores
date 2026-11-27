@@ -9,6 +9,15 @@ Agents: add a dated entry when you stop. Newest at the top.
   pick if inside it. Escape / Cancel drops it. 128-block limit explained on disabled items. One Undo each.
 - Tested: `tests/song-select-check.mjs` (PORT env), clipboard-check, loop-song-check pass. save-check's two 1280x760 header-height FAILs
   also fail on `dev` without this change (not caused by it).
+## 2026-11-27 — "cool flare": an animated strip on the Song screen (Claude, branch `q-flare`, not pushed)
+- **Done (queued request 6):** `js/ui/flare.js` + `css/flare.css`: a 52 px strip under the Song screen: a dancing mushroom (the app icon's, bobbing at the
+  tempo, `--beat` from the BPM), 16 step lights (pink; beat lights taller and hot pink) following the engine 'step' counter, and a small scope canvas of the master
+  peaks ('master' event) scrolling by. Only CSS variables, so it follows every skin. Only on the Song screen (Steps' grid rows have no room without touching steps.js).
+- **Cheap:** one requestAnimationFrame loop only while playing and on screen; it ends itself when the screen or tab is hidden or all is quiet, and the next
+  'master' event restarts it. prefers-reduced-motion: no bobbing or scope scrolling, only the lights change. engine/ untouched.
+- **Skippable:** File › Animations: on / off (localStorage `spores.flare`, 'off' when off; per computer like the skin).
+- **Hooks:** one line each in main.js (mount), filebar.js (menu item), index.html (CSS link). **Tested:** `tests/flare-check.mjs` (new; all ok, 4 skins, screenshots
+  /tmp/flare-<skin>.png), header-fit-check (all ok). The scope is a level history, not a true waveform (the engine only sends peaks).
 
 ## 2026-11-27 — IDM pink & green skin and tempo presets (Claude, branch `skin-tempo`, not pushed)
 - **Skin `idmpg`** (css/app.css, js/ui/skin.js, 4 swatches `--sw-idmpg-*`): from ...Thunder Plus' IDM pink & green: paper `--mxbg`
@@ -993,6 +1002,6 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
    UI: how to enter chords simply (e.g. a chord picker in the step panel: root + type, or tap several notes). 🔴 Claude.
 5. (DONE 2026-11-27, q-songsel) Song screen: Shift-click to select several blocks; right-click → Copy / Paste / Duplicate the selection; then click a
    place in the song to paste-insert (between blocks) or paste-replace (over blocks). One Undo step each.
-6. Some "cool flare": animations like Thunder Plus' FX-bar ones (its dancing dogs / scopes / LED animations; see
+6. (DONE 2026-11-27, branch q-flare) Some "cool flare": animations like Thunder Plus' FX-bar ones (its dancing dogs / scopes / LED animations; see
    thunder-plus index.html .dogs and the FX bar). Where in Spores is open: e.g. a small animated strip in the header or
    the Song screen while playing. Keep it light on CPU and skippable.

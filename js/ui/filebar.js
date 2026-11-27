@@ -5,6 +5,7 @@
 import {openSeedsLink} from './link.js';
 import {openSkinDialog} from './skin.js';
 import {el} from './dom.js';
+import {flareOn, setFlare} from './flare.js';
 
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
 // 'S' / 'Shift+S' / 'O' → ⌘S / ⇧⌘S on a Mac, Ctrl+S / Ctrl+Shift+S elsewhere
@@ -26,6 +27,8 @@ export function mountFileMenu(host, {store, files, scene}){
   if (files.hasRecent) menu.append(recentBtn, recentBox);
   if (files.exportAudio) menu.append(item('Export…', () => files.exportAudio(scene ? scene() : undefined)));
   menu.append(item('New song', () => files.startNew()), item('Seeds link…', () => openSeedsLink(store)), item('Skin…', openSkinDialog));
+  const anim = item('', () => setFlare(!flareOn())), animLbl = () => { anim.firstChild.textContent = 'Animations: ' + (flareOn() ? 'on' : 'off'); };   // the strip on the Song screen (js/ui/flare.js)
+  animLbl(); menu.append(anim);
   host.append(btn, menu);
 
   async function fillRecent(){
@@ -37,7 +40,7 @@ export function mountFileMenu(host, {store, files, scene}){
     for (const r of list) recentBox.append(el('button', {role: 'menuitem', title: r.path, onclick: () => { close(); files.openPath(r.path); }}, r.name));
   }
   function open(){
-    menu.hidden = false;
+    menu.hidden = false; animLbl();
     btn.setAttribute('aria-expanded', 'true');
     if (files.hasRecent){ recentBox.hidden = true; recentBtn.setAttribute('aria-expanded', 'false'); fillRecent(); }
     document.addEventListener('pointerdown', outside, true);

@@ -1,0 +1,23 @@
+/* css/flare.css: the animated strip at the foot of the Song screen (js/ui/flare.js). Variables only: every skin restyles it. */
+.flare { display: flex; align-items: center; gap: clamp(12px, 2vw, 28px); height: 52px; padding: 0 clamp(12px, 1.6vw, 24px); border-top: 1px solid var(--edge); background: var(--panel); overflow: hidden; --beat: .5s; }
+:root[data-flare="off"] .flare { display: none; }
+.fmush { width: 40px; height: 40px; flex: none; transform-origin: 50% 100%; }
+.fmush svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.fm-ground { fill: var(--edge); } .fm-stem { fill: var(--panel-2); stroke: var(--ink); stroke-width: 2; }
+.fm-band { fill: var(--audio); } .fm-cap { fill: var(--gate); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+.fm-gills { fill: var(--ink); } .fm-spot { fill: var(--panel); stroke: var(--ink); stroke-width: 1.5; } .fm-spot.lit { fill: var(--audio); } .fm-eye { fill: var(--ink); }
+.fleds { display: flex; gap: 5px; align-items: center; }
+.fled { width: 8px; height: 14px; background: var(--track); border: 1px solid var(--edge); border-radius: var(--radius); box-sizing: border-box; transition: background .12s linear, box-shadow .2s linear; }
+.fled.q { height: 20px; }
+.fled.on { background: var(--gate); box-shadow: 0 0 6px var(--gate); transition: none; }
+.fled.q.on { background: var(--selc); box-shadow: 0 0 8px var(--selc); }
+.fscope { flex: 0 1 220px; min-width: 0; height: 32px; margin-left: auto; background: var(--glass); border: 1px solid var(--edge); border-radius: var(--radius); }
+@keyframes fdance {   /* two beats: squash, hop, squash, hop, leaning one way then the other */
+  0%   { transform: translateY(0) rotate(-4deg) scale(1.05, .93); }
+  25%  { transform: translateY(-6px) rotate(-1deg) scale(.96, 1.06); }
+  50%  { transform: translateY(0) rotate(4deg) scale(1.05, .93); }
+  75%  { transform: translateY(-6px) rotate(1deg) scale(.96, 1.06); }
+  100% { transform: translateY(0) rotate(-4deg) scale(1.05, .93); }
+}
+.flare.on .fmush { animation: fdance calc(var(--beat) * 2) ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .flare.on .fmush { animation: none; } .fled { transition: none; } }
