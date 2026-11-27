@@ -2,6 +2,65 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — export C: File › Export… done, engine + UI + desktop (Claude, on `dev`, pushed)
+- **Done:** File › Export… (Steps screen File menu + the desktop app's native File menu): **Song** (the arrangement once),
+  **Scene** (the Steps screen's scene, or another, × 1–64, default 4, remembered for the page), **Stems** (a `.zip`: folder
+  "<name>/" with "01 Kick.wav" … + "<name> mix.wav"). Always 48 kHz, 24-bit stereo WAV (`wavBytes` now takes `[L, R]`;
+  the mono 32-bit float path for takes is unchanged, Save stays byte-identical). File name defaults to the song's file
+  name ("Song" if none; "<name> - scene A", "<name> stems"). It asks where first (inside the click), then renders with a
+  progress bar + Cancel, then "Saved “x.wav” (0:42, 12 MB)" and, on desktop, Show in Finder ("Show in folder" elsewhere).
+  Desktop: `spores:out-pick / out-write / out-show` in `desktop/files.js` (after Thunder's out-* ; Save dialog starts where
+  the last export went, else the song's folder, else Music; only `.wav` / `.zip`; only paths picked in that dialog this
+  session, in a separate in-memory allow-list so exports never push songs out of Open Recent; written via a temp file +
+  rename). `path-allow.js` `check(p, 'out')` + `isOutFile`. Chrome: `showSaveFilePicker`, else a download.
+- **Engine (🔴):** `js/engine/render.js` (page) + `js/engine/bounce.js` (worklet). The live worklet, voices, effects, takes,
+  pump wasm and Modal / Scanned notes (re-recorded at 48 kHz in render-worker.js) in an OfflineAudioContext. With
+  `processorOptions.bounce` the worklet plays exactly N steps, then on the sample after the last step it ends like Stop
+  (no new notes, takes fade 5 ms, synth notes released) **but the effects keep "playing"**, so the 3-s after-Stop tail
+  fade never cuts a reverb. The rendered samples go to the page in 32k-frame chunks over the port (the context itself is
+  1 channel, so memory = the result only), which also drives the progress bar. Tail: kept while louder than −90 dB at the
+  file; stops after 2 s below it, or 10 s after the end (then the last 0.25 s is faded); trimmed to the last sample above
+  −90 dB. After that the worklet writes silence, so the rest of the render is nearly free. Cancel: the page checks once per
+  second of audio (ctx.suspend), posts `{t:'halt'}` (a worklet only hears messages while an offline render is suspended).
+  Master = tanh in the worklet × 0.9 (the page's master gain) as live; the first step lands on sample 0 (the render's
+  0.06 s lead-in is trimmed). **Stems** = one pass for up to 4 tracks (8 channels; ≤ 4 passes for 16 tracks): every track
+  plays (so chance rolls are the same in every pass) but each listed track goes into its own channel pair after its
+  effects / volume / mute and before the master clip; the mix = 0.9 × tanh(Σ stems / 0.9), i.e. exactly what the worklet
+  does (sum then tanh). Live play is untouched: without `bounce` the worklet runs the same code path as before
+  (stemBuf() returns null, one extra null check per track per block).
+- **Rules (decisions, owner may change):** Song: a Loop-forever block plays its **repeats once** (as the Song screen draws it)
+  and the blocks after it follow; Mute and **Solo are respected** (as playing). Scene: song-length takes are silent (as when
+  a scene plays). Stems: MIDI / CV skipped, **muted tracks skipped, Solo ignored** (every other track counts, so stems add
+  up to the mix), tracks that stay completely silent are left out, the mix in the zip is that same set. Stems are not
+  clipped (a stem over 0 dBFS clips in the 24-bit file); the mix is. No dither (24-bit). Scene default × 4.
+- **Tested:** new `tests/export-check.mjs` (27 checks, all pass) on a song with 7 drum / synth tracks (one Coil = pump wasm,
+  one Modal = rendered notes, one muted), MIDI + CV tracks, a reverb + an echo, a loop take (440 Hz) and a song-length take
+  (660 Hz from bar 1), blocks A ×2 + B (Loop forever): song export through the dialog (mocked picker), end at 384000 =
+  4 bars exactly, tail 2.7 s ending near −90 dB, matches a plain offline render of the worklet within −90 dB (−144 dB),
+  Solo respected (−144 dB); scene ×3 at 170 BPM, kick on step 5: first non-zero sample = ceil(4 steps)+1 (the hit starts on
+  ceil(4 steps), whose first value is 0), end within 1 sample of 3 × 16 steps; stems: 9 files + mix with the right names
+  (MIDI, CV, muted left out, Solo ignored), 0.9·tanh(Σ/0.9) = mix (−128 dB), plain sum ≈ mix within −60 dB at these
+  levels (−63 dB, sum peak 0.12), mix = plain render with Solo off (−143 dB), 440 / 660 Hz in the takes' stems (song take
+  silent before bar 1), Coil and Modal stems have sound, Snare's reverb rings in its stem after the end; every WAV 2 ch /
+  48 kHz / 24-bit by python `wave`, `unzip -t`; Cancel stops in ~0.6 s and writes nothing, export after Cancel works; no
+  console errors. New `tests/desktop-export-check.js` (Electron 33, xvfb, dialogs + shell stubbed, 12 checks pass): menu
+  Export…, .wav filter, starts in Music then where the last one went, ".wav" added, WAV written + parses, Show in folder
+  gets the path, stems zip, cancelled dialog renders nothing, unpicked / .spores / .sh refused. `path-allow.test.js` +1
+  test. Dialog: no control under 44 px, screenshots in Minimal and Black looked right. Still pass: engine-check (170 BPM
+  gaps exact, MIDI clock 20.83–20.86 ms), sounds-check, audio-check (30), audio-song-check (29), fx-check (35), save-check
+  (46), cv-render-check, cv-check, zip-check, audio-ui-check (62), audio-song-ui-check (55), desktop-save-check, updater,
+  path-allow; cv-ui-check unchanged (its fake-input Tune step fails in this sandbox, as before).
+- **Speed:** a 12.5 s song ≈ 0.25–0.7 s here (this 2.1 GHz Xeon); stems ≈ (tracks / 4) × that.
+- **Not tested:** a real Mac (Finder reveal, the real Save dialog), Windows, a real Chrome picker UI (mocked), very long songs
+  (memory: the result is held as floats then as WAV bytes; a 5-minute 16-track stems export ≈ 1.5 GB of WAVs in one zip:
+  heavy — a desktop "folder of WAVs" would avoid the big zip if that is ever needed), touch.
+- **Odd:** each export pass's OfflineAudioContext keeps its wasm instances (tfx ×2, pump ×1) until the page goes (see the
+  FX1 note: ~60 contexts). Export only loads tfx / pump when the song uses effects / pump sounds, and a Song export is one
+  pass, Stems ≤ 4, so this needs a lot of exports in one session; reloading the page clears it. If it happens, effects
+  pass the sound through in that export (no crash).
+- **Next:** (5) desktop build + release (FX2, the Effects panel, landed alongside; export-check, fx-ui-check and the rest re-run after the rebase: all pass). Later if wanted: MP3, loudness-normalised
+  export, stems as a folder on desktop, Scene stems.
+
 ## 2026-11-26 — effects FX2: the Effects panel is done (Claude, on `dev`)
 - **Done:** `js/ui/fxpanel.js` (+ `css/fx.css`), mounted by panel.js as an "Effects" section after Track (drum, synth, loop
   audio and song-length audio; none for MIDI / CV). "+ Add effect ▾" lists the 34 effects under the 8 groups; at 4 on the
@@ -293,7 +352,7 @@ Agents: add a dated entry when you stop. Newest at the top.
   file). The desktop app's recent list is the allow-list (last 64 kept, newest 8 shown, missing files hidden). Not done
   (later): double-click a `.spores` to open it, Chrome "Open Recent", a File menu on the Song screen.
 
-## 2026-11-26 — PLAN: Save, audio tracks, export (owner's request; A done, B1 engine + data done, B2 UI and C not started)
+## 2026-11-26 — PLAN: Save, audio tracks, export (owner's request; A, B and C done: see the entries above)
 Order: **A Save** (audio can't live in localStorage, so it comes first) → **B audio tracks** → **C export** (needs an
 offline render that already knows audio tracks and the effects from the plan below). 🔴 = engine work (Claude).
 
@@ -324,7 +383,7 @@ offline render that already knows audio tracks and the effects from the plan bel
 - Panel: Simple = big Record, input level, loop length, Volume. More = start offset, gain, fade in / out, reverse,
   latency. Effects (plan below) apply to audio tracks too: reverb / delay on a voice is the obvious first use.
 
-**C. Export (File › Export…).**
+**C. Export (File › Export…). ✅ DONE 2026-11-26 (see "export C" above).**
 - Song as WAV (the arrangement once, plus the reverb / delay tail), Scene as WAV (the current scene × N), and Stems
   (one WAV per track + the mix, in a folder in the app or a zip in Chrome). 48 kHz, 24-bit. MIDI / CV tracks are
   skipped (they make no sound here). Progress bar and Cancel.
