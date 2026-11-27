@@ -2,6 +2,25 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-27 — queued requests 1-3: preview on click, drag a note, arrow keys (Claude, branch `q-notes`, not pushed)
+- **1 Preview on click:** `js/ui/preview.js` (`previewOn` / `setPreview`, localStorage `spores.preview`, on unless '0'; `previewStep`
+  calls `engine.hit(ti, deg, vel)`, the same 'hit' path as the Sound picker; drum and synth tracks only). Plays when a step is
+  switched on (not off), after a drag move, arrow key or the lane / panel note ▲ ▼. File menu row "Preview on click" with a tick
+  (stays open, `menuitemcheckbox`). `js/engine/` untouched.
+- **2 Drag:** `js/ui/notedrag.js` `attachNoteDrag`: press on an ON melodic step and move 8 px, then 14 px = one scale step (up =
+  higher); pointer captured so it can leave the cell; the cell's tap-toggle is skipped after a drag and the step is selected.
+  ONE Undo: `setNoteDeg` uses a per-drag merge key and a new `hold` flag on `store.edit(label, fn, key, hold)` (merges with the
+  last edit of the same label + key however long the pause; old merging unchanged). `touch-action: pan-x` on melodic cells.
+- **3 Keys:** `mountNoteKeys`: ↑ / ↓ on the selected note step, Shift = octave (the scale's note count). Ignored in
+  input / select / textarea, menus and dialogs, on the Song screen and for drum steps. Each key press is its own Undo (as ▲ ▼).
+- **"Chromatic" decision:** notes are stored as scale degrees (`deg`), so one move = the next note of the song's scale (a semitone
+  only in the Chromatic scale; a tone or so in Minor etc.; it stays in key). No format change, `v` not bumped. A true semitone move
+  in a non-chromatic scale would need a new per-step field (e.g. `semi`) and engine changes (compile, degToMidi) = 🔴; not done.
+- **Tested:** `tests/note-preview-check.mjs` (new, 19 checks) all pass; save-check (menu rows now 9) passes except 2 header-fit
+  checks that fail the same on the untouched branch (fname w=0 at 1280x760); engine-check, tempo-skin, scene-mute, clipboard,
+  master checks pass. header-fit-check did not finish in 2 min (not rerun). Not tested: a real touch screen, the sound itself.
+  steps.js is 613 lines (was 597): next change there should move code out.
+
 ## 2026-11-27 — IDM pink & green skin and tempo presets (Claude, branch `skin-tempo`, not pushed)
 - **Skin `idmpg`** (css/app.css, js/ui/skin.js, 4 swatches `--sw-idmpg-*`): from ...Thunder Plus' IDM pink & green: paper `--mxbg`
   #e9e8e3 = bench, `--mxpanel` #f2f1ec = panel, `--mxpanel2` #dddcd5 = panel-2, ink `--mx` #141414, muted `--mx2` #505050, `--mxdim`
@@ -973,12 +992,12 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
   dark text ≥ 7:1 on 909; cream on charcoal with soft taupe lines on 808). A saved 'black' opens as 808, 'pastel' as 909
   (skin.js RENAMED and index.html's first-paint script).
 
-## Queued requests (2026-11-27, from the owner; not started) — for the next session
-1. "Preview on click": clicking to add a note / drum step plays that sound; changing a note plays the new note. A File-menu
+## Queued requests (2026-11-27, from the owner; 1-3 DONE on branch q-notes, 4-6 not started) — for the next session
+[DONE] 1. "Preview on click": clicking to add a note / drum step plays that sound; changing a note plays the new note. A File-menu
    setting "Preview on click", on by default (per computer, localStorage, like the skin). The worklet already has a 'hit'
    message (worklet.js msg t:'hit' {ti, note, vel, len}) used for auditioning: use it.
-2. Click-hold-drag on a note step moves it up / down chromatically (drag up = higher), previewing as it goes; one Undo step.
-3. A selected note step: ↑ / ↓ change it chromatically (Shift: octave?), previewing. (steps.js selectStep / stepedit.js nudgeNote.)
+[DONE] 2. Click-hold-drag on a note step moves it up / down chromatically (drag up = higher), previewing as it goes; one Undo step.
+[DONE] 3. A selected note step: ↑ / ↓ change it chromatically (Shift: octave?), previewing. (steps.js selectStep / stepedit.js nudgeNote.)
 4. A polyphonic synth track: up to 4-note chords per step. Data: a step gets notes [deg…] (≤4) instead of one deg; old
    songs unchanged (bump v + migrate if the format changes). Engine: AcidCore is mono; the pump synths (Coil / Orbit / Fold)
    are already poly (PumpVoice), rendered engines play several bufs; MIDI / CV tracks: MIDI can send chords, CV cannot.
