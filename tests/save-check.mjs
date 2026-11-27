@@ -60,7 +60,7 @@ t = await tag(p); ok(/Song/.test(t.title) && !t.dot, 'Ctrl+Shift+S saves as: ' +
 await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.startsWith('File')).click());
 const rows = await p.evaluate(() => [...document.querySelector('.menu-wrap .menu').querySelectorAll('button')].map(b => b.textContent));
 console.log('menu:', JSON.stringify(rows));
-ok(rows.length === 7 && /^SaveCtrl\+S$/.test(rows[0]) && /Ctrl\+Shift\+S/.test(rows[1]) && /Ctrl\+O/.test(rows[3]), 'menu rows and shortcuts');
+ok(rows.length === 8 && /^SaveCtrl\+S$/.test(rows[0]) && /Ctrl\+Shift\+S/.test(rows[1]) && /Ctrl\+O/.test(rows[3]) && /^Export/.test(rows[4]), 'menu rows and shortcuts');
 await p.keyboard.press('Escape');
 // typing in a text field: no save
 const before = await p.evaluate(() => window.__writes.length);

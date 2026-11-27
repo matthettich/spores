@@ -16,7 +16,7 @@ export class BlipVoice {
     return {pitch:180, kick:0.4, kickT:35, fm:0, fmR:1.5, ring:0, ringF:300, noise:0, click:0.2, atk:0.5, decay:220, drive:0, filt:0, res:0.2, grain:0, grainT:60, vel:1};
   }
   reset(){ this.on = false; this.t = 0; this.ph = 0; this.mph = 0; this.rph = 0; this.lp = 0; this.bp = 0; this.rnd = 7777; this.g = 0; this.rep = 0; this.rg = 1; }
-  set(o){ this.p = Object.assign(BlipVoice.defaults(), o || {}); }
+  set(o){ const d = BlipVoice.defaults(), p = Object.assign({}, d, o || {}); for (const k in d) if (typeof p[k] !== 'number' || !isFinite(p[k])) p[k] = d[k]; this.p = p; }
   trig(vel){ this.on = true; this.t = 0; this.ph = 0; this.mph = 0; this.rep = 0; this.rg = vel == null ? 1 : vel; this.v0 = this.rg; }
   // Adds (does not write) samples [a, b) of the voice into out, times gain g.
   render(out, a, b, g){

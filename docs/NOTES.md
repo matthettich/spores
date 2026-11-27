@@ -16,9 +16,10 @@ Agents: add a dated entry when you stop. Newest at the top.
 - **Odd / left:** a block saved before now gains `loop: false` on the next save (same meaning, only a new key). The
   unknown-key drop means a file from a newer version loses settings this one doesn't know. Export length with a bad
   repeat was not run through the Export UI, only reasoned from `songMap`.
-- **For the engine owner (🔴, not touched):** `BlipVoice.set` in `js/engine/voices.js` still applies values unchecked
-  (raw `resolve('Kick', {pitch:'loud'})` still renders NaN). Add the same `isFinite` fallback to the default that
-  `AcidCore.set` has. `worklet.js` also still plays `Math.max(1, b.repeat)` raw; harmless now that load clamps to 64.
+- **Follow-up (Claude, same day):** `BlipVoice.set` now does what `AcidCore.set` does: any default key that isn't a
+  finite number falls back to its default (other keys pass through), so `{pitch:'loud', decay:NaN}` renders finite
+  samples (was NaN). `tests/save-check.mjs` now expects 8 File menu rows with Export… 5th; it runs all 46 checks green.
+  `worklet.js` still plays `Math.max(1, b.repeat)` raw, left as is since load clamps to 64.
 
 ## 2026-11-26 — every sound checked live; three slow pads fixed (Claude)
 - **Checked:** all 153 sounds played live (real-time AudioContext, peak at the output, new `tests/live-sounds-check.mjs`).
