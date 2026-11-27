@@ -19,5 +19,5 @@ export function previewStep(engine, store, where){
   const song = store.get(), ti = song.tracks.findIndex(t => t.id === where.trackId), t = song.tracks[ti];
   const st = stepAt(song, where);
   if (!t || !st || !st.on || (t.type !== 'drum' && t.type !== 'synth')) return;
-  Promise.resolve(engine.hit(ti, st.deg || 0, st.vel ?? 100)).catch(() => {});
+  Promise.resolve(engine.hit(ti, st.deg || 0, st.vel ?? 100, t.type === 'drum' ? null : st.chord || null)).catch(() => {});   // a chord: all of it
 }

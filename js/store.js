@@ -11,6 +11,7 @@
  *   v3 (effects): track.fx = [{id, type, on, p}], up to MAX_FX (4) on drum / synth / audio tracks (none on MIDI / CV).
  *                    type: a key of js/engine/fx.js; p: {setting: value} (fx.js ranges); id: 'f…', unique in the track.
  *                    Edit them with js/fxedit.js. Old files: fx = [].
+ *   v5 (chords): a note step may carry `chord` = [scale steps above `deg`], up to 3 (js/chord.js). Old files: none.
  *   track.params     {setting: value} over the sound's own values (drum / synth). Settings and their ranges:
  *                    settingsFor(track.sound) in js/engine/sounds.js. Clear it when the sound changes.
  *
@@ -20,10 +21,11 @@
  */
 import {DRUM_NAMES, SYNTH_NAMES, settingsFor} from './engine/sounds.js';
 import {isFxType, fxClean, MAX_FX} from './engine/fx.js';
+import {cleanChord} from './chord.js';
 
 // a track's chosen colour (none = by type: drums pink, synths teal…); the colours are --tc-<key> on :root
 export const TRACK_COLOURS = ['pink', 'orange', 'mustard', 'green', 'teal', 'blue', 'purple', 'grey'];
-export const VERSION = 4, MAX_TRACKS = 16, MAX_AUDIO_TRACKS = 4, CLIP_BARS = [1, 2, 4, 8], SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
+export const VERSION = 5, MAX_TRACKS = 16, MAX_AUDIO_TRACKS = 4, CLIP_BARS = [1, 2, 4, 8], SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
 const HISTORY = 80, MERGE_MS = 600;
 const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Master volume', 'Swing', 'Step velocity', 'Step chance', 'Effect setting']);
 const TYPES = ['drum', 'synth', 'midi', 'cv', 'audio'];
@@ -179,6 +181,8 @@ export function migrate(input){
     }
     s.v = 4;
   }
+  // v4 → v5 (2026-11-27): chords on note steps (step.chord, optional): nothing to change, every old step is one note
+  if (s.v === 4) s.v = 5;
   const base = newSong();
   for (const k of ['bpm', 'swing', 'key', 'scale', 'lock', 'mode', 'master', 'loopSong']) if (s[k] === undefined) s[k] = base[k];
   // master: the master volume (gain, 1 = 0 dB, up to 2 ≈ +6 dB; the Song screen's fader); loopSong: the song starts again at its end
@@ -199,6 +203,7 @@ export function migrate(input){
       const f = audioIds.has(tid) && fixClip(c); if (f) scenes[k].clips[tid] = f;
     }
   }
+  for (const sc of Object.values(scenes)) for (const lane of Object.values(sc.steps)) if (Array.isArray(lane)) for (const st of lane) fixChord(st);
   s.scenes = Object.keys(scenes).length ? scenes : base.scenes;
   // song blocks: only scenes that exist, repeat 1..64 (the Song screen's own limit), loop a boolean; all dropped = empty song
   s.song = Array.isArray(s.song) ? s.song
@@ -213,6 +218,12 @@ export function migrate(input){
     .map(p => ({name: p.name.slice(0, 40), sound: p.sound,
       params: p.params && typeof p.params === 'object' && !Array.isArray(p.params) ? p.params : {}})) : [];
   return s;
+}
+
+// a step's chord (v5): clean or gone (a bad one must not reach the engine)
+function fixChord(st){
+  if (!st || typeof st !== 'object' || st.chord === undefined) return;
+  const c = cleanChord(st.chord); if (c) st.chord = c; else delete st.chord;
 }
 
 function fixTrack(t){

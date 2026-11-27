@@ -14,6 +14,7 @@
  * transfer); recording, the input, the level meter and the latency test are in recorder.js (API: docs/NOTES.md).
  */
 import {degToMidi} from '../scale.js';
+import {stepMidi} from '../chord.js';
 import {resolve, ENGINES} from './sounds.js';
 import {cvValue, gateValue, DEFAULT_FS, CV_CHANNELS} from './cv.js';
 import {createRecorder} from './recorder.js';
@@ -48,14 +49,18 @@ export function compile(song, opts = {}){
   for (const [k, sc] of Object.entries(song.scenes || {})){
     const len = Math.max(1, Math.min(4, sc.bars | 0 || 1)) * STEPS_PER_BAR;
     // mute / solo per scene (store.js v4); a track-wide flag (older in-memory songs, tests) counts in every scene
-    scenes[k] = {len, mute: song.tracks.map(t => !!((sc.mute && sc.mute[t.id]) || t.mute)), solo: song.tracks.map(t => !!((sc.solo && sc.solo[t.id]) || t.solo)), steps: song.tracks.map(t => {
+    scenes[k] = {len, mute: song.tracks.map(t => !!((sc.mute && sc.mute[t.id]) || t.mute)), solo: song.tracks.map(t => !!((sc.solo && sc.solo[t.id]) || t.solo)), steps: song.tracks.map((t, ti) => {
       const lane = (sc.steps && sc.steps[t.id]) || [], out = new Array(len).fill(null);
       if (t.type === 'audio') return out;   // an audio track plays its take, not steps
       for (let i = 0; i < len; i++){
         const st = lane[i]; if (!st || !st.on) continue;
         out[i] = {note: t.type === 'drum' ? (t.seedsNote ?? 36) : degToMidi(st.deg || 0, song.key, song.scale, t.oct ?? 3),
           vel: st.vel ?? 100, chance: song.mode === 'more' ? (st.chance ?? 100) : 100};
-        if (t.type === 'cv') out[i].cv = cvValue(out[i].note, t.cv, t.oct ?? 3, fs);
+        if (t.type === 'cv') out[i].cv = cvValue(out[i].note, t.cv, t.oct ?? 3, fs);   // CV: one pitch output, so a chord plays its root
+        else if (t.type !== 'drum' && st.chord){   // a chord (js/chord.js): every note, lowest (= note) first
+          const ns = stepMidi(st, song.key, song.scale, t.oct ?? 3);
+          if (ns.length > 1){ out[i].notes = ns; tracks[ti].poly = true; }
+        }
       }
       return out;
     }), clips: song.tracks.map(t => {
@@ -126,7 +131,7 @@ export async function createEngine(){
       if (!t.rendered) return; seen.add(t.id);
       const key = t.engine + JSON.stringify(t.vals); let r = rec.get(t.id);
       if (!r || r.key !== key){ r = {key, engine: t.engine, vals: t.vals, done: new Set(), want: new Set(), waiters: r ? r.waiters : new Map(), busy: false}; rec.set(t.id, r); }
-      for (const sc of Object.values(c.scenes)) for (const st of sc.steps[ti] || []) if (st) r.want.add(st.note);
+      for (const sc of Object.values(c.scenes)) for (const st of sc.steps[ti] || []) if (st){ r.want.add(st.note); if (st.notes) for (const n of st.notes) r.want.add(n); }
     });
     for (const id of [...rec.keys()]) if (!seen.has(id)) rec.delete(id);
     pump();
@@ -204,14 +209,14 @@ export async function createEngine(){
     get cvScale(){ return cvFs; },
     cvHold(ch, value){ node.port.postMessage({t: 'cvtest', ch, value}); },   // ch from 0; value null = let go
     scene(k){ node.port.postMessage({t: 'scene', scene: k}); },
-    // play one track now: a drum hit, or a synth note at a scale step
-    async hit(ti, deg = 0, vel = 100){
+    // play one track now: a drum hit, or a synth note at a scale step (chord: the step's chord, js/chord.js: all its notes)
+    async hit(ti, deg = 0, vel = 100, chord = null){
       if (ctx.state !== 'running') await ctx.resume();
       const t = song && song.tracks[ti]; if (!t) return;
-      const note = t.type === 'drum' ? (t.seedsNote ?? 36) : degToMidi(deg, song.key, song.scale, t.oct ?? 3);
+      const notes = t.type === 'drum' ? [t.seedsNote ?? 36] : stepMidi({deg, chord}, song.key, song.scale, t.oct ?? 3), note = notes[0];
       const c = compiled && compiled.tracks[ti];
-      if (c && c.rendered){ planRecordings(compiled); await recordNow(t.id, note); }   // a Modal / Scanned note not recorded yet
-      node.port.postMessage({t: 'hit', ti, note, vel, len: 0.25});
+      if (c && c.rendered){ planRecordings(compiled); for (const n of notes) await recordNow(t.id, n); }   // a Modal / Scanned note not recorded yet
+      node.port.postMessage(notes.length > 1 ? {t: 'hit', ti, note, notes, vel, len: 0.25} : {t: 'hit', ti, note, vel, len: 0.25});
       return note;
     },
   };
