@@ -20,8 +20,9 @@ import * as midi from '../midi.js';
 import {el} from './dom.js';
 import {cvSection} from './cv.js';
 import {renameTrack, deleteTrack} from './trackctl.js';
+import {audioSection} from './audiopanel.js';
 
-const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV'};
+const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV', audio: 'Audio'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // slider position 0…1 ↔ value, for settings that span several decades (min must be above 0 for a log scale to work)
@@ -34,8 +35,8 @@ function fmt(r, v){
   return r.unit ? `${n} ${r.unit}` : String(n);
 }
 
-export function mountPanel(root, {store, engine, state}){
-  let sig = '', updaters = [];
+export function mountPanel(root, {store, engine, state, rec}){
+  let sig = '', updaters = [], disposers = [];
 
   function refresh(){
     const s = store.get();
@@ -49,7 +50,10 @@ export function mountPanel(root, {store, engine, state}){
   }
 
   function build(s, t, ti){
+    disposers.forEach(f => f()); disposers = [];
     root.innerHTML = ''; updaters = [];
+    // the microphone is only open while an audio track is showing (the browser shows a recording dot while it is)
+    if (t.type !== 'audio' && engine.input.open && !engine.recording) engine.closeInput();
     root.append(el('div', {class: 'phead'},
       el('div', {class: 'pheadrow'},
         el('div', {class: 'ptitle'}, t.name || TYPE[t.type] || 'Track'),
@@ -64,11 +68,14 @@ export function mountPanel(root, {store, engine, state}){
       midiTrack(t, ti);
     } else if (t.type === 'cv'){
       updaters.push(cvSection(root, {store, engine, t, ti, mode: s.mode}));
+    } else if (t.type === 'audio'){
+      const a = audioSection(root, {store, engine, state, rec, t, ti, mode: s.mode, volume: () => volume(t, ti)});
+      updaters.push(a.update); disposers.push(a.dispose);
     }
-    if (t.type !== 'cv') volume(t, ti);   // a CV track has no level: its voltages are its notes
+    if (t.type !== 'cv' && t.type !== 'audio') volume(t, ti);   // a CV track has no level: its voltages are its notes
     if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
     if (s.mode === 'more' && t.type === 'drum') seedsNote(t, ti);
-    step(s, t, ti);
+    if (t.type !== 'audio') step(s, t, ti);
     const last = s.tracks.length < 2;
     root.append(el('div', {class: 'pdel'},
       el('button', {class: 'tb text', disabled: last,
