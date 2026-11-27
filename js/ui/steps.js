@@ -8,7 +8,7 @@
 import {STEPS_PER_BAR} from '../engine/engine.js';
 import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js';
 import {renameTrack} from './trackctl.js';
-import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, canAddAudio} from '../store.js';
+import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, newSongTrack, isSongTrack, canAddAudio} from '../store.js';
 import {trackColour, openColourPicker} from './trackcolor.js';
 import {mountPanel} from './panel.js';
 import {mountFileMenu} from './filebar.js';
@@ -130,14 +130,19 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   for (const [type, label] of [['synth', 'Synth track'], ['midi', 'MIDI track'], ['cv', 'CV track']])
     addMenu.append(el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack(type); }}, label));
   const audioItem = el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack('audio'); }}, 'Audio track (record your voice)');
-  addMenu.append(audioItem);
+  const songItem = el('button', {role: 'menuitem', onclick: () => { closeAdd(); addTrack('song'); }}, 'Song-length audio track (record over the whole song)');
+  addMenu.append(audioItem, songItem);
   const addWrap = el('div', {class: 'menu-wrap'}, el('div', {class: 'seg'}, addBtn, addMoreBtn), addMenu);
   // the audio item says why it is off: up to MAX_AUDIO_TRACKS of them, within MAX_TRACKS tracks
   function paintAudioItem(s = store.get()){
     const n = s.tracks.filter(t => t.type === 'audio').length, ok = canAddAudio(s);
     audioItem.disabled = !ok;
     audioItem.title = ok ? 'Add a track you record your voice (or an instrument) onto' : s.tracks.length >= MAX_TRACKS ? `${MAX_TRACKS} tracks is the most` : `${MAX_AUDIO_TRACKS} audio tracks is the most`;
-    audioItem.replaceChildren('Audio track (record your voice)', ok ? '' : el('span', {class: 'kbd'}, s.tracks.length >= MAX_TRACKS ? `${MAX_TRACKS} tracks is the most` : `${n} of ${MAX_AUDIO_TRACKS} used`));
+    const why = ok ? '' : el('span', {class: 'kbd'}, s.tracks.length >= MAX_TRACKS ? `${MAX_TRACKS} tracks is the most` : `${n} of ${MAX_AUDIO_TRACKS} used`);
+    audioItem.replaceChildren('Audio track (record your voice)', why);
+    songItem.disabled = !ok;   // shares the same limit
+    songItem.title = ok ? 'Add a track you record once over the whole song (then record on the Song screen)' : audioItem.title;
+    songItem.replaceChildren('Song-length audio track (record over the whole song)', ok ? '' : why.cloneNode(true));
   }
   function openAdd(){
     paintAudioItem();
@@ -166,7 +171,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
 
   root.append(header, workspace, bottom);
   mountFileMenu(fileWrap, {store, files});
-  const panel = mountPanel(panelEl, {store, engine, state, rec});
+  const panel = mountPanel(panelEl, {store, engine, state, rec, openSong});
 
   /* ---- actions ---- */
   function togglePlay(){
@@ -204,8 +209,11 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     if (store.get().tracks.length >= MAX_TRACKS) return;
     store.edit('Add track', s => {
       const used = new Set(s.tracks.map(t => t.sound));
-      const n = s.tracks.filter(t => t.type === type).length + 1;
-      if (type === 'audio'){
+      const n = s.tracks.filter(t => t.type === type && !isSongTrack(t)).length + 1;
+      if (type === 'song'){
+        if (!canAddAudio(s)) return;
+        const t = newSongTrack('Song voice ' + (s.tracks.filter(isSongTrack).length + 1)); s.tracks.push(t);
+      } else if (type === 'audio'){
         if (!canAddAudio(s)) return;
         const t = newTrack('audio'); t.name = 'Voice ' + n; s.tracks.push(t);
       } else if (type === 'midi' || type === 'cv'){
@@ -282,7 +290,8 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       if (t.sound) sub.push(t.sound);
       if (t.type === 'midi') sub.push(t.midi && t.midi.port ? portName(t.midi.port) : 'no port yet', 'ch ' + ((t.midi && t.midi.ch) || 1));
       if (t.type === 'cv') sub.push(`out ${t.cv.pitch} / ${t.cv.gate}` + (t.cv.cal ? ' · tuned' : ''));
-      if (t.type === 'audio'){ const c = ((s.scenes[state.scene] || {}).clips || {})[t.id]; sub.push(c ? `${c.bars} bar${c.bars === 1 ? '' : 's'}` : 'no take yet'); }
+      if (isSongTrack(t)) sub[0] = 'Audio · whole song', sub.push(t.take ? 'has a take' : 'no take yet');
+      else if (t.type === 'audio'){ const c = ((s.scenes[state.scene] || {}).clips || {})[t.id]; sub.push(c ? `${c.bars} bar${c.bars === 1 ? '' : 's'}` : 'no take yet'); }
       const mute = el('button', {class: 'mute' + (t.mute ? ' on' : ''), title: 'Mute this track',
         'aria-label': 'Mute ' + (t.name || TYPE[t.type]), 'aria-pressed': t.mute ? 'true' : 'false',
         onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, el('span', {class: 'mbox'}, 'M'));
@@ -321,6 +330,12 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     const len = clamp(sc.bars | 0 || 1, 1, 4) * STEPS_PER_BAR;
     gridEl.innerHTML = ''; cells = []; audioLanes = {};
     s.tracks.forEach((t, ti) => {
+      if (isSongTrack(t)){   // no loop lane: one line that points at the Song screen, where this track lives
+        const lane = el('button', {type: 'button', class: 'lane songpointer', style: {'--rowc': trackColour(t)}, title: 'This track is recorded and shown on the Song screen',
+          onclick: () => { selectTrack(ti); openSong(); }}, 'Song-length take · on the Song screen');
+        gridEl.append(el('div', {class: 'srow'}, lane)); cells.push([]);
+        return;
+      }
       if (t.type === 'audio'){   // a waveform lane in place of the steps (js/ui/audiolane.js)
         const L = audioLanes[ti] = audioLane({t, ti, bars: clamp(sc.bars | 0 || 1, 1, 4), onSelect: selectTrack});
         gridEl.append(el('div', {class: 'srow'}, L.lane)); cells.push(L.cells);
@@ -349,6 +364,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       const lane = sc.steps[t.id] || [], rc = cells[ti];
       if (!rc) return;
       if (rc[0]) rc[0].parentElement.classList.toggle('quiet', anySolo && !t.solo);   // silent while others are soloed
+      if (isSongTrack(t)) return;
       if (t.type === 'audio'){ if (audioLanes[ti]) audioLanes[ti].paint(s, state.scene, rec); return; }
       rc.forEach((b, i) => {
         const st = lane[i], on = !!(st && st.on);

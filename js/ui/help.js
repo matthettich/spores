@@ -21,6 +21,7 @@ export function openHelp(){
       el('div', {class: 'psec'}, 'Recording your voice'),
       el('p', {class: 'note'}, 'Add track ▾ › Audio track. Wear headphones, press ● Record: you hear one bar of count-in, then it records the '
         + 'loop length you chose and plays it back in time, over and over. One take per scene; record again to replace it (Undo brings the old one back).'),
+      el('p', {class: 'note'}, 'Song-length audio track: Add track ▾ › Song-length audio track, then press Record on the Song screen to record over the whole song (from the start, or from a block you tap).'),
       el('div', {class: 'psec'}, 'Seeds'),
       el('p', {class: 'note'}, 'File › Seeds link… sends every drum hit and the clock to Seeds over a MIDI port.'),
       el('p', {class: 'note'}, 'Space plays and stops. Undo (Ctrl+Z) takes back any change. The song saves itself in this browser; File › Save '

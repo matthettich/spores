@@ -2,6 +2,36 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — audio tracks B4: the UI for the song-length audio track done (Claude agent, on `dev`, pushed)
+- **Done:** Add track ▾ › "Song-length audio track (record over the whole song)" (names "Song voice 1…", shares the 4-audio limit;
+  both audio items grey out with "4 of 4 used"). **Steps screen:** the track keeps its row ("Audio · whole song · no take yet") but
+  its lane is one dashed line "Song-length take · on the Song screen" (tap: selects it and opens the Song screen); its panel
+  is a note + button + Volume / Colour. **Song screen** (`js/ui/songlane.js`, `songwave.js`, `songmore.js`): under the blocks one
+  strip per song track, aligned to the block cards (each card = its bars × repeats, via `songMap`), waveform drawn at `startBar`
+  (repeats included), trims honoured, "No take yet · press Record", a playhead line from `songStep`. Blocks and strips scroll
+  sideways together. Tap a block (not its buttons) to select it; the card under the strips has ● Record from start, ● Record
+  from block N (off until a block is tapped), count-in "1 2 3 4", "Recording… bar N" (song bar), ■ Stop (keeps the take), Volume,
+  M, S, More: start bar − / + (whole bars, "Bar n"), trim start / end, fades, gain, Remove this take (asks), then the shared input
+  picker / level meter / Hear myself / latency. Undo / Redo = the Song header's. The shared input bits were moved out of
+  `audiopanel.js` into `js/ui/audioinput.js` (`inputControls`, `latencyControls`), so both screens use the same code and settings.
+  The mic closes after a take unless More is open. Song tracks no longer get a bar in the blocks' mini grid. Help: one line.
+  **Fix:** the level meter's cover was `--glass` (near black) so it looked like a black bar before the mic was on; now `--track`
+  (border `--edge`).
+- **Tested:** new `tests/audio-song-ui-check.mjs` (fake mic), all pass: add; limit shared (1 song + 3 loop = 4, both items
+  disabled with the reason); Steps: no loop lane, the one-line lane, row text, panel, tap goes to Song; empty lane text; record from
+  start (count-in shown, "Recording… bar 1", Stop keeps it, waveform starts at block 1's left and runs past block 2); Undo / Redo;
+  record from block 2 (startBar 1, waveform starts at block 2's left, nothing over block 1); start bar + / − undoable (stops at
+  bar 1); fade / trim sliders write, one Undo step; meter cover is not black with the mic off; Save → Open in a fresh profile
+  draws the take; header one row, no page scroll, no control under 44 px on Steps and Song (More open) at 1280x760 and 1440x830 in
+  Minimal, Black, Pastel; no console errors. Song-screen screenshots in all three skins looked right. Still pass: audio-ui-check,
+  audio-song-check, audio-check, engine-check, save-check.
+- **Not tested:** a real mic / interface; a long real take; touch; recording a song with a Loop-forever block; two song tracks at
+  once (code handles it, one card each; only one can record at a time); a take longer than the song (drawn to the song's end only).
+- **Decisions (owner may change):** the lane waveform is as wide as the block cards (fixed 188 px each), so a long song is
+  scrolled sideways, not squeezed; the record buttons are on a card under the strips, not inside the strip; "selected block"
+  is chosen by tapping a block card; start bar is shown 1-based ("Bar 1" = startBar 0); no fade curves drawn.
+- **Next:** export (C), effects, a take-end handle you can drag on the strip.
+
 ## 2026-11-26 — audio tracks B3: engine + data for song-length audio done (Claude agent, on `dev`, pushed)
 - **Done:** a second kind of audio track that spans the song: `type: 'audio'` + `span: 'song'` + `track.take`
   (`newSongTrack()`, `isSongTrack(t)`, `newSongTake({id, sr, bpm, startBar})` in store.js; it counts toward

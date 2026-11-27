@@ -14,7 +14,7 @@ import {trackColour, openColourPicker} from './trackcolor.js';
 import {ENGINES, SOUNDS, settingsFor} from '../engine/sounds.js';
 import {degToMidi, midiName} from '../scale.js';
 import {nudgeNote, setChance, setVelocity, stepAt} from './stepedit.js';
-import {SOUND_LISTS} from '../store.js';
+import {SOUND_LISTS, isSongTrack} from '../store.js';
 import {ask, openDialog} from './dialog.js';
 import * as midi from '../midi.js';
 import {el} from './dom.js';
@@ -35,7 +35,7 @@ function fmt(r, v){
   return r.unit ? `${n} ${r.unit}` : String(n);
 }
 
-export function mountPanel(root, {store, engine, state, rec}){
+export function mountPanel(root, {store, engine, state, rec, openSong}){
   let sig = '', updaters = [], disposers = [];
 
   function refresh(){
@@ -44,7 +44,7 @@ export function mountPanel(root, {store, engine, state, rec}){
     const ti = Math.max(0, Math.min(state.track, s.tracks.length - 1));
     state.track = ti;
     const t = s.tracks[ti];
-    const next = [ti, t.id, t.name, t.color || '', s.tracks.length, t.type, t.sound || '', s.mode, state.step, state.scene].join('|');
+    const next = [ti, t.id, t.name, t.color || '', s.tracks.length, t.type, t.span || '', t.sound || '', s.mode, state.step, state.scene].join('|');
     if (next !== sig){ sig = next; build(s, t, ti); return; }
     for (const f of updaters) f(s, t);
   }
@@ -53,7 +53,7 @@ export function mountPanel(root, {store, engine, state, rec}){
     disposers.forEach(f => f()); disposers = [];
     root.innerHTML = ''; updaters = [];
     // the microphone is only open while an audio track is showing (the browser shows a recording dot while it is)
-    if (t.type !== 'audio' && engine.input.open && !engine.recording) engine.closeInput();
+    if ((t.type !== 'audio' || isSongTrack(t)) && engine.input.open && !engine.recording) engine.closeInput();
     root.append(el('div', {class: 'phead'},
       el('div', {class: 'pheadrow'},
         el('div', {class: 'ptitle'}, t.name || TYPE[t.type] || 'Track'),
@@ -68,11 +68,15 @@ export function mountPanel(root, {store, engine, state, rec}){
       midiTrack(t, ti);
     } else if (t.type === 'cv'){
       updaters.push(cvSection(root, {store, engine, t, ti, mode: s.mode}));
+    } else if (isSongTrack(t)){   // recorded and edited on the Song screen (js/ui/songlane.js)
+      root.append(el('div', {class: 'psec'}, 'Song-length take'),
+        el('p', {class: 'note'}, 'This track records once over the whole song. Record it, move it and trim it on the Song screen.'),
+        el('button', {class: 'tb', onclick: () => openSong && openSong()}, 'Open the Song screen'));
     } else if (t.type === 'audio'){
       const a = audioSection(root, {store, engine, state, rec, t, ti, mode: s.mode, volume: () => volume(t, ti)});
       updaters.push(a.update); disposers.push(a.dispose);
     }
-    if (t.type !== 'cv' && t.type !== 'audio') volume(t, ti);   // a CV track has no level: its voltages are its notes
+    if (t.type !== 'cv' && t.type !== 'audio' || isSongTrack(t)) volume(t, ti);   // a CV track has no level: its voltages are its notes
     if (s.mode === 'more' && (t.type === 'drum' || t.type === 'synth')) length(t, ti);
     if (s.mode === 'more' && t.type === 'drum') seedsNote(t, ti);
     if (t.type !== 'audio') step(s, t, ti);

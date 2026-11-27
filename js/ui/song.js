@@ -4,7 +4,8 @@
  * Every change goes through store.edit, so Undo, Redo and the autosave work here too. The engine plays the song
  * (engine.play('song')) and tells us on every step which block, repeat and step it is on, which moves the bar.
  */
-import {SCENES} from '../store.js';
+import {SCENES, isSongTrack} from '../store.js';
+import {songLanes} from './songlane.js';
 import {STEPS_PER_BAR} from '../engine/engine.js';
 import {noteColor} from '../scale.js';
 import {el} from './dom.js';
@@ -20,6 +21,7 @@ const repeatOf = b => clamp((b && b.repeat) | 0 || 1, 1, 64);
 export function mountSong(root, {store, engine, files, openSteps}){
   let playing = false;
   let pos = {block: 0, rep: 0, counter: 0, live: false};
+  let selBlock = null;                        // the block tapped as the place to record a song-length take from
   let dragFrom = null;                        // the block being dragged, while it is dragged
 
   /* ---- header: back to the steps, Play, Tempo ---- */
@@ -52,15 +54,23 @@ export function mountSong(root, {store, engine, files, openSteps}){
   const addBtn = el('button', {class: 'tb', onclick: addBlock}, '+ Add scene');
   const libEl = el('div', {class: 'libgrid'});
 
+  // blocks, then (one per song-length audio track) a strip lined up under them; it all scrolls sideways together
+  const stripsEl = el('div', {class: 'sstrips'}), cardsEl = el('div', {class: 'scards'});
+  const sinner = el('div', {class: 'sinner'}, blocksEl, stripsEl);
+  cardsEl.append(el('div', {class: 'sline-h'}, el('span', {class: 'psec'}, 'Song-length audio')),
+    el('p', {class: 'hint'}, 'Record once over the whole song. Tap a scene block above to record from it.'));
+  const lanes = songLanes({store, engine, blocksEl, stripsEl, cardsEl, getSel: () => selBlock});
+
   const body = el('div', {class: 'songbody'},
     el('section', {class: 'ssection'},
       el('div', {class: 'sline-h'},
         el('span', {class: 'psec'}, 'Song'),
         addBtn),
       el('p', {class: 'hint'}, 'Scenes play in order, then the song starts again. Drag to reorder; Loop repeats one scene forever.'),
-      blocksEl,
+      el('div', {class: 'sarea'}, sinner),
       posbar,
-      posline),
+      posline,
+      cardsEl),
     el('section', {class: 'ssection'},
       el('div', {class: 'sline-h'},
         el('span', {class: 'psec'}, 'Scenes')),
@@ -125,7 +135,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
     const wrap = el('div', {class: 'mini', 'aria-hidden': 'true'});
     const len = Math.min(STEPS_PER_BAR, sceneLen(sc));   // the first bar is enough to recognise a scene
     // eight rows at most; audio tracks always get theirs (they come last), the others share what is left
-    const audio = s.tracks.filter(t => t.type === 'audio');
+    const audio = s.tracks.filter(t => t.type === 'audio' && !isSongTrack(t));   // (song-length tracks have their own lane)
     for (const t of [...s.tracks.filter(t => t.type !== 'audio').slice(0, 8 - audio.length), ...audio]){
       const row = el('div', {class: 'miniro'});
       if (t.type === 'audio'){   // a teal bar the length of a bar when this scene has a take; a faint one when it has none
@@ -167,6 +177,11 @@ export function mountSong(root, {store, engine, files, openSteps}){
         el('button', {class: 'tb quiet', title: 'Remove from the song', 'aria-label': 'Remove block',
           onclick: () => removeBlock(i, sc.name || `Scene ${b.scene}`)}, '×')));
 
+    card.addEventListener('click', e => {   // tap a block (not one of its buttons) to choose it as the place to record from
+      if (e.target.closest('button, select, input')) return;
+      const pos = [...blocksEl.children].indexOf(card);
+      selBlock = selBlock === pos ? null : pos; sync();
+    });
     // drag a block onto another one to put it there
     card.addEventListener('dragstart', e => {
       dragFrom = i;
@@ -188,6 +203,8 @@ export function mountSong(root, {store, engine, files, openSteps}){
       return;
     }
     list.forEach(({b, i}) => blocksEl.append(blockCard(s, b, i)));
+    if (selBlock != null && selBlock >= list.length) selBlock = null;
+    if (selBlock != null) blocksEl.children[selBlock].classList.add('sel');
   }
 
   function drawLibrary(s){
@@ -251,6 +268,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
     drawBlocks(s);
     drawLibrary(s);
     drawPosition(s);
+    lanes.sync(s);
   }
 
   store.subscribe(s => { if (!root.hidden) sync(s); });   // the Steps screen has nothing to do with these edits
@@ -276,9 +294,10 @@ export function mountSong(root, {store, engine, files, openSteps}){
     /* the engine says a step was heard: {scene, block, rep, counter} — move the bar along the song */
     playhead(m){
       if (root.hidden || !playing) return;
+      lanes.playhead(m);
       pos = {block: m.block | 0, rep: m.rep | 0, counter: m.counter | 0, live: true};
       drawPosition(store.get());
     },
-    stopped(){ /* engine 'stop' already reset the bar */ },
+    stopped(){ lanes.stopped(); },
   };
 }
