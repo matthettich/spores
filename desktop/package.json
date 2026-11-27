@@ -9,7 +9,7 @@
     "copy": "node copy-app.js",
     "start": "node copy-app.js && electron .",
     "dist:mac": "node copy-app.js && electron-builder --mac --publish never",
-    "test": "node --test ../tests/updater.test.js"
+    "test": "node --test ../tests/updater.test.js ../tests/path-allow.test.js"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -25,6 +25,8 @@
       "main.js",
       "preload.js",
       "updater.js",
+      "files.js",
+      "path-allow.js",
       "app/**/*"
     ],
     "directories": {

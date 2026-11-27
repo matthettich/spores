@@ -196,7 +196,7 @@ export function createSaveFile({store}){
   }
 
   // the desktop app closes the window only after asking; it hears about unsaved changes here
-  if (native && native.dirty){ st.onChange(s => native.dirty(s.dirty)); native.dirty(st.dirty); }
+  if (native && native.dirty){ st.onChange(s => native.dirty(s.dirty, s.name)); native.dirty(st.dirty, st.name); }
   // Chrome / Edge: warn before the tab closes with unsaved changes (the desktop app asks in its own way)
   if (!native) window.addEventListener('beforeunload', e => { if (st.dirty){ e.preventDefault(); e.returnValue = ''; } });
 
