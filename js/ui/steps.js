@@ -8,7 +8,7 @@
 import {STEPS_PER_BAR} from '../engine/engine.js';
 import {KEYS, SCALES, noteColor, degName, degToMidi, midiName} from '../scale.js';
 import {renameTrack} from './trackctl.js';
-import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, newSongTrack, isSongTrack, canAddAudio, copySceneInto} from '../store.js';
+import {SCENES, MAX_TRACKS, MAX_AUDIO_TRACKS, SOUND_LISTS, newTrack, newSongTrack, isSongTrack, canAddAudio, copySceneInto, isMuted, isSolo, anySolo as anySoloIn, setQuiet} from '../store.js';
 import {trackMeters} from './trackmeters.js';
 import {mountClipboard} from './clipboard.js';
 import {trackColour, openColourPicker} from './trackcolor.js';
@@ -293,8 +293,9 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
 
   function drawTracks(s = store.get()){
     tracksEl.innerHTML = '';
-    const anySolo = s.tracks.some(t => t.solo);
+    const anySolo = anySoloIn(s, state.scene), k = state.scene;   // mute / solo: this scene's (store.js setQuiet)
     s.tracks.forEach((t, ti) => {
+      const muted = isMuted(s, k, t.id), soloed = isSolo(s, k, t.id);
       const sub = [TYPE[t.type] || t.type];
       if (t.sound) sub.push(t.sound);
       if (t.type === 'midi') sub.push(t.midi && t.midi.port ? portName(t.midi.port) : 'no port yet', 'ch ' + ((t.midi && t.midi.ch) || 1));
@@ -302,15 +303,15 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
       if (isSongTrack(t)) sub[0] = 'Audio · whole song', sub.push(t.take ? 'has a take' : 'no take yet');
       else if (t.type === 'audio'){ const c = ((s.scenes[state.scene] || {}).clips || {})[t.id]; sub.push(c ? `${c.bars} bar${c.bars === 1 ? '' : 's'}` : 'no take yet'); }
       if (t.fx && t.fx.length) sub.push('fx ' + t.fx.length);   // js/ui/fxpanel.js
-      const mute = el('button', {class: 'mute' + (t.mute ? ' on' : ''), title: 'Mute this track',
-        'aria-label': 'Mute ' + (t.name || TYPE[t.type]), 'aria-pressed': t.mute ? 'true' : 'false',
-        onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => { s2.tracks[ti].mute = !s2.tracks[ti].mute; }); }}, el('span', {class: 'mbox'}, 'M'));
-      const solo = el('button', {class: 'mute solo' + (t.solo ? ' on' : ''), title: 'Solo: hear only this track (and other soloed ones)',
-        'aria-label': 'Solo ' + (t.name || TYPE[t.type]), 'aria-pressed': t.solo ? 'true' : 'false',
-        onclick: e => { e.stopPropagation(); store.edit('Solo', s2 => { s2.tracks[ti].solo = !s2.tracks[ti].solo; }); }}, el('span', {class: 'mbox'}, 'S'));
+      const mute = el('button', {class: 'mute' + (muted ? ' on' : ''), title: `Mute this track in scene ${k}`,
+        'aria-label': `Mute ${t.name || TYPE[t.type]} in scene ${k}`, 'aria-pressed': muted ? 'true' : 'false',
+        onclick: e => { e.stopPropagation(); store.edit('Mute', s2 => setQuiet(s2, state.scene, t.id, 'mute')); }}, el('span', {class: 'mbox'}, 'M'));
+      const solo = el('button', {class: 'mute solo' + (soloed ? ' on' : ''), title: `Solo in scene ${k}: hear only this track (and other soloed ones)`,
+        'aria-label': `Solo ${t.name || TYPE[t.type]} in scene ${k}`, 'aria-pressed': soloed ? 'true' : 'false',
+        onclick: e => { e.stopPropagation(); store.edit('Solo', s2 => setQuiet(s2, state.scene, t.id, 'solo')); }}, el('span', {class: 'mbox'}, 'S'));
       const tname = el('span', {class: 'tname', title: 'Double-click to rename'}, t.name);
       tname.addEventListener('dblclick', e => { e.stopPropagation(); renameTrack(store, t.id); });
-      const row = el('div', {class: 'track' + (t.type === 'audio' ? ' audiotrack' : '') + (t.fx && t.fx.length ? ' hasfx' : '') + (ti === state.track ? ' sel' : '') + (anySolo && !t.solo ? ' quiet' : ''), role: 'button', tabindex: '0',
+      const row = el('div', {class: 'track' + (t.type === 'audio' ? ' audiotrack' : '') + (t.fx && t.fx.length ? ' hasfx' : '') + (ti === state.track ? ' sel' : '') + (anySolo && !soloed ? ' quiet' : ''), role: 'button', tabindex: '0',
         'aria-label': `${t.name} (${TYPE[t.type]})`, 'aria-pressed': ti === state.track ? 'true' : 'false'},
         el('button', {type: 'button', class: 'tbar ' + t.type, style: {'--tcol': trackColour(t)},
           title: 'Change colour', 'aria-label': 'Change colour of ' + t.name,
@@ -371,11 +372,11 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   function paintGrid(s = store.get()){
     const sc = s.scenes[state.scene];
     if (!sc) return;
-    const anySolo = s.tracks.some(t => t.solo);
+    const anySolo = anySoloIn(s, state.scene);
     s.tracks.forEach((t, ti) => {
       const lane = sc.steps[t.id] || [], rc = cells[ti];
       if (!rc) return;
-      if (rc[0]) rc[0].parentElement.classList.toggle('quiet', anySolo && !t.solo);   // silent while others are soloed
+      if (rc[0]) rc[0].parentElement.classList.toggle('quiet', anySolo && !isSolo(s, state.scene, t.id));   // silent while others are soloed (in this scene)
       if (isSongTrack(t)) return;
       if (t.type === 'audio'){ if (audioLanes[ti]) audioLanes[ti].paint(s, state.scene, rec); return; }
       rc.forEach((b, i) => {

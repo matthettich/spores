@@ -23,7 +23,7 @@ import {isFxType, fxClean, MAX_FX} from './engine/fx.js';
 
 // a track's chosen colour (none = by type: drums pink, synths teal…); the colours are --tc-<key> on :root
 export const TRACK_COLOURS = ['pink', 'orange', 'mustard', 'green', 'teal', 'blue', 'purple', 'grey'];
-export const VERSION = 3, MAX_TRACKS = 16, MAX_AUDIO_TRACKS = 4, CLIP_BARS = [1, 2, 4, 8], SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
+export const VERSION = 4, MAX_TRACKS = 16, MAX_AUDIO_TRACKS = 4, CLIP_BARS = [1, 2, 4, 8], SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
 const HISTORY = 80, MERGE_MS = 600;
 const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing', 'Step velocity', 'Step chance', 'Effect setting']);
 const TYPES = ['drum', 'synth', 'midi', 'cv', 'audio'];
@@ -40,7 +40,7 @@ export function newTrack(type = 'drum', sound, name){
   sound = sound || (type === 'drum' ? 'Kick' : type === 'synth' ? 'Acid bass' : '');
   return {id, name: name || sound || (type === 'midi' ? 'MIDI' : type === 'audio' ? 'Voice' : 'CV'), type, sound,
     midi: {port: '', ch: 1, clock: false}, cv: {pitch: 3, gate: 4, cal: null},
-    params: {}, fx: [], seedsNote: GM[sound] ?? 36, oct: type === 'drum' ? 3 : 2, vol: 0.8, mute: false, solo: false};
+    params: {}, fx: [], seedsNote: GM[sound] ?? 36, oct: type === 'drum' ? 3 : 2, vol: 0.8};   // mute / solo: per scene (scene.mute / scene.solo)
 }
 
 // may another audio track be added? (MAX_AUDIO_TRACKS of the MAX_TRACKS)
@@ -71,7 +71,20 @@ export const isSongTrack = t => !!t && t.type === 'audio' && t.span === 'song';
 export function copySceneInto(song, from, to){
   const src = song.scenes[from]; if (!src || song.scenes[to]) return;
   song.scenes[to] = {name: `Copy of ${src.name || 'Scene ' + from}`, bars: src.bars || 1,
-    steps: JSON.parse(JSON.stringify(src.steps || {})), clips: JSON.parse(JSON.stringify(src.clips || {}))};
+    steps: JSON.parse(JSON.stringify(src.steps || {})), clips: JSON.parse(JSON.stringify(src.clips || {})),
+    mute: Object.assign({}, src.mute), solo: Object.assign({}, src.solo)};
+}
+/* Mute and solo belong to a scene (v4): scene.mute / scene.solo = {trackId: true}, so a track can sit out one scene of the
+   song and play in the next. solo: while any track in a scene is soloed, only soloed tracks are heard in that scene. */
+export const isMuted = (song, k, id) => !!(song.scenes[k] && song.scenes[k].mute && song.scenes[k].mute[id]);
+export const isSolo = (song, k, id) => !!(song.scenes[k] && song.scenes[k].solo && song.scenes[k].solo[id]);
+export const anySolo = (song, k) => !!(song.scenes[k] && song.scenes[k].solo && Object.keys(song.scenes[k].solo).some(id => song.scenes[k].solo[id]));
+// inside store.edit: set (on = true / false) or flip (on undefined) mute or solo ('mute' | 'solo') of a track in scene k,
+// or in every scene (k = null: the Song screen's lanes, whose song-length takes play across them)
+export function setQuiet(song, k, id, what, on){
+  const keys = k == null ? Object.keys(song.scenes) : [k];
+  if (on === undefined) on = !keys.every(x => (what === 'mute' ? isMuted : isSolo)(song, x, id));
+  for (const x of keys){ const sc = song.scenes[x]; if (!sc) continue; const m = sc[what] = sc[what] || {}; if (on) m[id] = true; else delete m[id]; }
 }
 
 export const newClipId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -157,17 +170,28 @@ export function migrate(input){
   if (s.v === 1){ for (const sc of Object.values(s.scenes && typeof s.scenes === 'object' ? s.scenes : {})) if (sc && typeof sc === 'object') sc.clips = {}; s.v = 2; }
   // v2 → v3 (2026-11-26): track effects; none before (fixTrack fills track.fx = [] and checks it in every version)
   if (s.v === 2){ for (const t of Array.isArray(s.tracks) ? s.tracks : []) if (t && typeof t === 'object') t.fx = []; s.v = 3; }
+  // v3 → v4 (2026-11-27): mute and solo per scene: a track muted / soloed before is muted / soloed in every scene
+  if (s.v === 3){
+    const ts = (Array.isArray(s.tracks) ? s.tracks : []).filter(t => t && typeof t === 'object' && typeof t.id === 'string');
+    for (const sc of Object.values(s.scenes && typeof s.scenes === 'object' ? s.scenes : {})) if (sc && typeof sc === 'object'){
+      sc.mute = {}; sc.solo = {};
+      for (const t of ts){ if (t.mute) sc.mute[t.id] = true; if (t.solo) sc.solo[t.id] = true; }
+    }
+    s.v = 4;
+  }
   const base = newSong();
   for (const k of ['bpm', 'swing', 'key', 'scale', 'lock', 'mode']) if (s[k] === undefined) s[k] = base[k];
   s.tracks = Array.isArray(s.tracks) && s.tracks.length ? s.tracks.slice(0, MAX_TRACKS) : base.tracks;
   s.tracks.forEach(fixTrack);
   const audioIds = new Set(s.tracks.filter(t => t.type === 'audio' && !isSongTrack(t)).map(t => t.id));   // (loop tracks: song-length ones have no clips)
-  const scenes = {};
+  const scenes = {}, trackIds = new Set(s.tracks.map(t => t.id));
   for (const [k, sc] of Object.entries(s.scenes && typeof s.scenes === 'object' ? s.scenes : {})){
     if (!SCENES.includes(k) || !sc || typeof sc !== 'object') continue;
     scenes[k] = {name: typeof sc.name === 'string' && sc.name ? sc.name : 'Scene ' + k,
       bars: Math.max(1, Math.min(4, sc.bars | 0 || 1)),
-      steps: sc.steps && typeof sc.steps === 'object' ? sc.steps : {}, clips: {}};
+      steps: sc.steps && typeof sc.steps === 'object' ? sc.steps : {}, clips: {}, mute: {}, solo: {}};
+    // mute / solo: only tracks that exist
+    for (const w of ['mute', 'solo']) for (const [tid, on] of Object.entries(sc[w] && typeof sc[w] === 'object' ? sc[w] : {})) if (on === true && trackIds.has(tid)) scenes[k][w][tid] = true;
     // loop takes: only for audio tracks that exist (a deleted track's take goes with it; Undo brings both back)
     for (const [tid, c] of Object.entries(sc.clips && typeof sc.clips === 'object' ? sc.clips : {})){
       const f = audioIds.has(tid) && fixClip(c); if (f) scenes[k].clips[tid] = f;
@@ -214,7 +238,7 @@ function fixTrack(t){
   else { delete t.span; delete t.take; }
   if (t.color !== undefined && !TRACK_COLOURS.includes(t.color)) delete t.color;   // optional; old songs have none
   if (typeof t.seedsNote !== 'number') t.seedsNote = GM[t.sound] ?? 36;
-  t.mute = !!t.mute; t.solo = !!t.solo;
+  delete t.mute; delete t.solo;   // (per scene since v4)
   t.fx = fixFx(t);
 }
 

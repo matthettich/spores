@@ -2,7 +2,7 @@
  * (a scene's letter button, a track's row; also the keyboard's Menu key or Shift+F10 on them).
  *
  * Scene menu: Copy scene · Paste over this scene (asks first) · Paste as a new scene · Copy to a new scene.
- *   A scene is its length, steps and takes; pasting over keeps the target's name.
+ *   A scene is its length, steps, takes and mutes / solos; pasting over keeps the target's name.
  * Track menu: Copy track · Paste over this track (asks first) · Paste steps into this scene (asks first) · Paste as a new track.
  *   A copied track is everything about it: kind, sound, settings, effects, its steps and takes in every scene.
  *   "Paste over" replaces all of that on the target (it keeps its place in the list); "Paste steps" replaces only
@@ -65,14 +65,16 @@ export function mountClipboard({store, state, goScene, selectTrack, scenesEl, tr
       {label: `Copy ${k} to a new scene`, off: !free ? 'Every letter is in use' : '', fn: () => { const f = freeScene(store.get()); if (!f) return; store.edit('Copy scene', s2 => copySceneInto(s2, k, f)); goScene(f); }},
     ]);
   });
-  const sameScene = (a, b) => JSON.stringify([a.bars, a.steps, a.clips]) === JSON.stringify([b.bars, b.steps, b.clips]);
+  const sameScene = (a, b) => JSON.stringify([a.bars, a.steps, a.clips, a.mute || {}, a.solo || {}]) === JSON.stringify([b.bars, b.steps, b.clips, b.mute || {}, b.solo || {}]);
   // only the tracks that still exist (a track deleted since the copy leaves nothing behind)
   const fit = (s, sc) => {
     const ids = new Set(s.tracks.map(t => t.id)), loop = new Set(s.tracks.filter(t => t.type === 'audio' && !isSongTrack(t)).map(t => t.id));
-    const steps = {}, clips = {};
+    const steps = {}, clips = {}, mute = {}, solo = {};
     for (const [id, lane] of Object.entries(sc.steps || {})) if (ids.has(id) && !loop.has(id)) steps[id] = clone(lane);
     for (const [id, c] of Object.entries(sc.clips || {})) if (loop.has(id)) clips[id] = clone(c);
-    return {bars: sc.bars || 1, steps, clips};
+    for (const id of Object.keys(sc.mute || {})) if (ids.has(id)) mute[id] = true;
+    for (const id of Object.keys(sc.solo || {})) if (ids.has(id)) solo[id] = true;
+    return {bars: sc.bars || 1, steps, clips, mute, solo};
   };
   async function pasteScene(k){
     const s = store.get(); if (!clip || clip.kind !== 'scene' || !s.scenes[k]) return;
@@ -102,9 +104,12 @@ export function mountClipboard({store, state, goScene, selectTrack, scenesEl, tr
     ]);
   });
   function copyTrack(s, t){
-    const steps = {}, clips = {};
-    for (const [k, sc] of Object.entries(s.scenes)){ if (sc.steps && sc.steps[t.id]) steps[k] = clone(sc.steps[t.id]); if (sc.clips && sc.clips[t.id]) clips[k] = clone(sc.clips[t.id]); }
-    clip = {kind: 'track', from: t.id, scene: state.scene, t: clone(t), steps, clips};
+    const steps = {}, clips = {}, mute = {}, solo = {};
+    for (const [k, sc] of Object.entries(s.scenes)){
+      if (sc.steps && sc.steps[t.id]) steps[k] = clone(sc.steps[t.id]); if (sc.clips && sc.clips[t.id]) clips[k] = clone(sc.clips[t.id]);
+      if (sc.mute && sc.mute[t.id]) mute[k] = true; if (sc.solo && sc.solo[t.id]) solo[k] = true;
+    }
+    clip = {kind: 'track', from: t.id, scene: state.scene, t: clone(t), steps, clips, mute, solo};
   }
   const fxOf = s => s.tracks.reduce((n, t) => n + (t.fx || []).length, 0);
   const audioCount = s => s.tracks.filter(t => t.type === 'audio').length;
@@ -130,7 +135,7 @@ export function mountClipboard({store, state, goScene, selectTrack, scenesEl, tr
   }
   // the copied track's content under a given id: new effect ids, a CV track on free outputs
   function made(s2, id, keepOut){
-    const t = Object.assign(clone(clip.t), {id, mute: false, solo: false});
+    const t = Object.assign(clone(clip.t), {id});
     t.fx = (t.fx || []).map(f => Object.assign(f, {id: newFxId()}));
     if (t.type === 'cv' && !keepOut){
       const used = new Set(s2.tracks.filter(x => x.type === 'cv' && x.id !== id).flatMap(x => [x.cv.pitch, x.cv.gate]));
@@ -141,6 +146,9 @@ export function mountClipboard({store, state, goScene, selectTrack, scenesEl, tr
   function putScenes(s2, id, t){
     for (const [k, sc] of Object.entries(s2.scenes)){
       if (sc.steps) delete sc.steps[id]; if (sc.clips) delete sc.clips[id];
+      // a pasted track keeps the copy's mutes, scene by scene (not its solos: a pasted copy shouldn't silence the rest)
+      if (sc.mute) delete sc.mute[id]; if (sc.solo) delete sc.solo[id];
+      if (clip.mute[k]){ sc.mute = sc.mute || {}; sc.mute[id] = true; }
       const loop = t.type === 'audio' && !isSongTrack(t);
       if (!loop && clip.steps[k]){ sc.steps = sc.steps || {}; sc.steps[id] = clone(clip.steps[k]); }
       if (loop && clip.clips[k]){ sc.clips = sc.clips || {}; sc.clips[id] = clone(clip.clips[k]); }

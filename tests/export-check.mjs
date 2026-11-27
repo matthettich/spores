@@ -42,11 +42,12 @@ await p.evaluate(async () => {
   await putClip('xsong', {sr, data: sine(660, 3 * sr, 0.3)});
   const s = structuredClone(window.spores.store.get());
   s.bpm = 120; s.mode = 'simple';
-  s.tracks.forEach(t => { t.vol = 0.05; t.fx = []; t.solo = false; t.mute = false; });
+  s.tracks.forEach(t => { t.vol = 0.05; t.fx = []; });
+  for (const sc of Object.values(s.scenes)){ sc.mute = {}; sc.solo = {}; }   // (mute / solo are per scene)
   s.tracks.forEach(t => { const l = s.scenes.A.steps[t.id] || (s.scenes.A.steps[t.id] = []); l[0] = {on: true, deg: 0, vel: 100, chance: 100}; });   // every track sounds
   s.tracks[6].sound = 'Coil · Default'; s.tracks[6].params = {};      // Lead: a pump synth (pump-synth.wasm)
   s.tracks[3].type = 'synth'; s.tracks[3].sound = 'Modal · Default'; s.tracks[3].params = {}; s.tracks[3].oct = 3;   // a rendered synth (render-worker.js)
-  s.tracks[4].mute = true;                                         // Open hat: muted, so no stem
+  for (const sc of Object.values(s.scenes)) sc.mute[s.tracks[4].id] = true;   // Open hat: muted in every scene, so no stem
   s.tracks[1].fx = [{id: 'r1', type: 'reverb', on: true, p: Object.assign(fxDefaults('reverb'), {mix: 220})}];   // Snare: reverb
   s.tracks[5].fx = [{id: 'd1', type: 'delay', on: true, p: fxDefaults('delay')}];                              // Bass: echo
   const loop = newTrack('audio'); loop.vol = 0.15; const st = newSongTrack(); st.vol = 0.15;
@@ -137,7 +138,7 @@ async function exportVia(what, {scene, repeats, cancelAfter} = {}){
   ok(R.tailPk > 1e-4, 'the tail has sound (reverb / echo): ' + db(R.tailPk));
   ok(R.ws === '.wav', 'picker asked for a .wav');
   // Solo respected in a Song export (as playing): solo the Kick, export, only the kick's sound
-  await p.evaluate(() => window.spores.store.edit('Solo', s => { s.tracks[0].solo = true; }));
+  await p.evaluate(() => window.spores.store.edit('Solo', s => { for (const sc of Object.values(s.scenes)) sc.solo = {[s.tracks[0].id]: true}; }));   // (solo is per scene: in every scene)
   await exportVia('song');
   const S = await p.evaluate(async () => { const d = window.__dec(window.__out), ref = await window.__ref(window.spores.store.get(), 9, {mode: 'song', block: 0});
     return {diff: window.__cmp(d.L, ref[0], 8 * 48000), len: d.L.length}; });
@@ -146,7 +147,7 @@ async function exportVia(what, {scene, repeats, cancelAfter} = {}){
 
 /* 2. Scene ×3 at 170, a kick only on step 5 */
 {
-  await p.evaluate(() => window.spores.store.edit('test', s => { s.bpm = 170; s.tracks.forEach(t => { t.solo = false; }); s.scenes.C = {name: 'K', bars: 1, steps: {[s.tracks[0].id]: [null, null, null, null, {on: true, deg: 0, vel: 100, chance: 100}]}, clips: {}}; }));
+  await p.evaluate(() => window.spores.store.edit('test', s => { s.bpm = 170; for (const sc of Object.values(s.scenes)) sc.solo = {}; s.scenes.C = {name: 'K', bars: 1, steps: {[s.tracks[0].id]: [null, null, null, null, {on: true, deg: 0, vel: 100, chance: 100}]}, clips: {}}; }));
   const r = await exportVia('scene', {scene: 'C', repeats: 3});
   ok(/^Saved “Song - scene C\.wav”/.test(r.status), 'scene export: ' + r.status);
   const R = await p.evaluate(() => { const d = window.__dec(window.__out), x = window.__lastExport; let first = -1; for (let i = 0; i < d.L.length; i++) if (d.L[i] !== 0){ first = i; break; } return {first, at: [d.L[16942], d.L[16943]], end: x.end, length: x.length}; });
@@ -154,13 +155,13 @@ async function exportVia(what, {scene, repeats, cancelAfter} = {}){
   ok(R.first === Math.ceil(4 * step) || (R.first === Math.ceil(4 * step) + 1 && R.at[0] === 0), `first kick on sample ${R.first} (step 5 = ${(4 * step).toFixed(2)}: the hit starts on sample ${Math.ceil(4 * step)}, whose value is ${R.at[0]}; then ${R.at[1].toFixed(5)})`);
   ok(Math.abs(R.end - 3 * 16 * step) < 1, `scene ×3 ends at ${R.end} (${(3 * 16 * step).toFixed(2)})`);
   pyWave(await save('scene.wav'));
-  await p.evaluate(() => window.spores.store.edit('test', s => { s.bpm = 120; delete s.scenes.C; s.tracks[0].solo = true; }));   // (Solo on: stems ignore it)
+  await p.evaluate(() => window.spores.store.edit('test', s => { s.bpm = 120; delete s.scenes.C; for (const sc of Object.values(s.scenes)) sc.solo = {[s.tracks[0].id]: true}; }));   // (Solo on: stems ignore it)
 }
 
 /* 3. Stems */
 {
   const r = await exportVia('stems');
-  const want = await p.evaluate(() => window.spores.store.get().tracks.filter(t => ['drum', 'synth', 'audio'].includes(t.type) && !t.mute).map(t => t.name));
+  const want = await p.evaluate(() => window.spores.store.get().tracks.filter(t => ['drum', 'synth', 'audio'].includes(t.type) && !Object.values(window.spores.store.get().scenes).every(sc => sc.mute && sc.mute[t.id])).map(t => t.name));
   ok(/^Saved “Song stems\.zip”/.test(r.status) && r.status.includes(`${want.length} tracks`), 'stems export: ' + r.status);
   const f = await save('stems.zip');
   execFileSync('unzip', ['-tq', f]);
@@ -181,7 +182,7 @@ async function exportVia(what, {scene, repeats, cancelAfter} = {}){
     const tone = (a, hz, i0, i1) => { let re = 0, im = 0, e = 0; for (let i = i0; i < i1; i++){ re += a[i] * Math.cos(2 * Math.PI * hz * i / 48000); im += a[i] * Math.sin(2 * Math.PI * hz * i / 48000); e += a[i] * a[i]; } return Math.sqrt(re * re + im * im) * 2 / (i1 - i0) / Math.max(1e-9, Math.sqrt(2 * e / (i1 - i0))); };
     const by = k => stems.find(x => x.name.includes(k));
     // the mix against a plain render with Solo off
-    const song = structuredClone(window.spores.store.get()); song.tracks.forEach(t => { t.solo = false; });
+    const song = structuredClone(window.spores.store.get()); for (const sc of Object.values(song.scenes)) sc.solo = {};
     const ref = await window.__ref(song, n / 48000 + 1, {mode: 'song', block: 0});
     const end = window.__lastExport.end, snare = by('Snare'), vo = by('Voice'), sv = by('Song voice'), sn = window.spores.store.get().tracks;
     return {names: stems.map(x => x.name), clipDiff: Math.max(window.__cmp(clip[0], mix.L, n), window.__cmp(clip[1], mix.R, n)),
@@ -201,7 +202,7 @@ async function exportVia(what, {scene, repeats, cancelAfter} = {}){
 
 /* 5. Cancel */
 {
-  await p.evaluate(() => window.spores.store.edit('test', s => { s.tracks[0].solo = false; }));
+  await p.evaluate(() => window.spores.store.edit('test', s => { for (const sc of Object.values(s.scenes)) sc.solo = {}; }));
   const r = await exportVia('scene', {scene: 'A', repeats: 64, cancelAfter: 400});
   const out = await p.evaluate(() => window.__out);
   ok(/^Stopped/.test(r.status) && !out && r.ms < 5000, `Cancel: "${r.status}" after ${r.ms} ms, nothing written`);

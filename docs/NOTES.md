@@ -941,3 +941,11 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
   its place and id) · Paste steps into this scene (asks; steps, or audio → audio its take, from the scene copied in) ·
   Paste as a new track ("<name> 2"). Limits (16 tracks, 4 audio, 32 effects) disable an item with the reason. Toasts
   no longer catch clicks (they sat over the scene buttons). Tested: tests/clipboard-check.mjs (15 ok), fx-ui, audio-ui checks.
+- Mute and solo are per scene (song format v4): scene.mute / scene.solo = {trackId: true}; store.js isMuted / isSolo /
+  anySolo / setQuiet. v3 → v4 copies a track's old mute / solo into every scene. The Steps screen's M / S edit the scene
+  being edited; the Song screen's song-length lanes set all scenes. Engine: compile gives scenes[k].mute / solo arrays
+  (a track-wide t.mute / t.solo still counts, for tests); notes are picked with the scene's flags when the step is
+  decided, and the tracks' flags (tape / effect levels) change on the step's own sample (a queued {quiet} event).
+  Stems leave out a track muted in every scene played. Copy / paste carries mutes (pasted tracks don't carry solos).
+  Tested: tests/scene-mute-check.mjs (8 ok); engine, fx, export (solo now in every scene: an fx level changing mid-song is
+  block-quantised, ~−88 dB between two renders), audio, audio-song, cv-render, clipboard checks.

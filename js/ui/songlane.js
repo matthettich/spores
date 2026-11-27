@@ -10,7 +10,7 @@
  */
 import {el} from './dom.js';
 import {songMap} from '../songmap.js';
-import {isSongTrack} from '../store.js';
+import {isSongTrack, isMuted, isSolo, anySolo, setQuiet} from '../store.js';
 import {keepSongTake} from '../takes.js';
 import {trackColour} from './trackcolor.js';
 import {peaksFor, missing} from './peaks.js';
@@ -59,8 +59,9 @@ export function songLanes({store, engine, blocksEl, stripsEl, cardsEl, getSel}){
     const line = el('p', {class: 'recline num', role: 'status', 'aria-live': 'polite'});
     const vol = el('input', {type: 'range', min: 0, max: 1, step: 0.01, 'aria-label': 'Volume'}), vval = el('span', {class: 'pval num'});
     vol.addEventListener('input', () => { vval.textContent = Math.round(+vol.value * 100) + '%'; store.edit('Volume', s => { const x = s.tracks.find(y => y.id === id); if (x) x.vol = +vol.value; }, `${id}:volume`); });
-    const mute = el('button', {class: 'mute', title: 'Mute this track', onclick: () => store.edit('Mute', s => { const x = s.tracks.find(y => y.id === id); if (x) x.mute = !x.mute; })}, el('span', {class: 'mbox'}, 'M'));
-    const solo = el('button', {class: 'mute solo', title: 'Solo: hear only this track (and other soloed ones)', onclick: () => store.edit('Solo', s => { const x = s.tracks.find(y => y.id === id); if (x) x.solo = !x.solo; })}, el('span', {class: 'mbox'}, 'S'));
+    // a song-length take plays across every scene: its M / S set or clear it in all of them (the Steps screen's are per scene)
+    const mute = el('button', {class: 'mute', title: 'Mute this track in every scene', onclick: () => store.edit('Mute', s => setQuiet(s, null, id, 'mute'))}, el('span', {class: 'mbox'}, 'M'));
+    const solo = el('button', {class: 'mute solo', title: 'Solo in every scene: hear only this track (and other soloed ones)', onclick: () => store.edit('Solo', s => setQuiet(s, null, id, 'solo'))}, el('span', {class: 'mbox'}, 'S'));
     const moreBtn = el('button', {class: 'tb', 'aria-expanded': 'false', onclick: () => { moreEl.hidden = !moreEl.hidden; moreBtn.setAttribute('aria-expanded', String(!moreEl.hidden)); moreBtn.textContent = moreEl.hidden ? 'More ▾' : 'Less ▴'; if (last) paintAll(); }}, 'More ▾');
     const mc = moreControls({store, engine, id, offs, inp, mapOf});
     const moreEl = el('div', {class: 'slane-more', hidden: true}, ...mc.nodes);
@@ -93,7 +94,9 @@ export function songLanes({store, engine, blocksEl, stripsEl, cardsEl, getSel}){
     const c = trackColour(t);
     L.strip.style.setProperty('--rowc', c);
     L.name.textContent = t.name; L.label.textContent = t.name;
-    L.card.classList.toggle('quiet', s.tracks.some(x => x.solo) && !t.solo);
+    // M / S lit when on in every scene (they set all scenes); the card dims when it is soloed out everywhere
+    const ks = Object.keys(s.scenes), tMute = ks.every(k => isMuted(s, k, t.id)), tSolo = ks.every(k => isSolo(s, k, t.id));
+    L.card.classList.toggle('quiet', ks.every(k => anySolo(s, k) && !isSolo(s, k, t.id)));
     /* the strip: a band per block, the take on a canvas */
     const w = stripsEl.clientWidth, h = L.strip.clientHeight;
     const geom = geometry(map, cards());
@@ -123,8 +126,8 @@ export function songLanes({store, engine, blocksEl, stripsEl, cardsEl, getSel}){
     if (mine && w2 && w2.bar) { L.msg.textContent = `Recording… bar ${w2.bar}`; L.msg.hidden = false; }
     const v = t.vol ?? 0.8;
     L.vval.textContent = Math.round(v * 100) + '%'; if (document.activeElement !== L.vol) L.vol.value = v;
-    L.mute.classList.toggle('on', !!t.mute); L.mute.setAttribute('aria-pressed', t.mute ? 'true' : 'false'); L.mute.setAttribute('aria-label', 'Mute ' + t.name);
-    L.solo.classList.toggle('on', !!t.solo); L.solo.setAttribute('aria-pressed', t.solo ? 'true' : 'false'); L.solo.setAttribute('aria-label', 'Solo ' + t.name);
+    L.mute.classList.toggle('on', tMute); L.mute.setAttribute('aria-pressed', tMute ? 'true' : 'false'); L.mute.setAttribute('aria-label', 'Mute ' + t.name);
+    L.solo.classList.toggle('on', tSolo); L.solo.setAttribute('aria-pressed', tSolo ? 'true' : 'false'); L.solo.setAttribute('aria-label', 'Solo ' + t.name);
     if (!L.moreEl.hidden) L.mc.update(t);
     L.xOf = bar => xOfBar(map, geom, bar);
   }

@@ -101,7 +101,7 @@ function join(chunks, chans, len){
 export async function renderAudio(song0, {what = 'song', scene, repeats = 1, onProgress = () => {}, cancelled = () => false} = {}){
   const s = structuredClone(song0);
   s.song = (s.song || []).map(b => Object.assign({}, b, {loop: false}));   // the arrangement once
-  if (what === 'stems') s.tracks.forEach(t => { t.solo = false; });
+  if (what === 'stems'){ for (const sc of Object.values(s.scenes)) sc.solo = {}; s.tracks.forEach(t => { t.solo = false; }); }   // stems: every track as itself
   const c = compile(s), stepLen = SR * 15 / Math.max(20, Math.min(300, c.bpm));
   let play, steps;
   if (what === 'scene'){
@@ -121,7 +121,9 @@ export async function renderAudio(song0, {what = 'song', scene, repeats = 1, onP
   if (cancelled()) return null;
 
   const sound = t => t.type === 'drum' || t.type === 'synth' || t.type === 'audio';
-  const stemTracks = what === 'stems' ? s.tracks.filter(t => sound(t) && !t.mute) : null;
+  // a track muted in every scene the export plays makes no stem (one muted in some scenes plays in the others)
+  const used = [...new Set(what === 'scene' ? [play.scene] : c.song.map(b => b.scene))].filter(k => c.scenes[k]);
+  const stemTracks = what === 'stems' ? s.tracks.filter((t, i) => sound(t) && !used.every(k => c.scenes[k].mute[i])) : null;
   const groups = stemTracks ? Array.from({length: Math.ceil(stemTracks.length / PER_PASS)}, (_, g) => stemTracks.slice(g * PER_PASS, (g + 1) * PER_PASS)) : [null];
   if (stemTracks && !stemTracks.length) throw new Error('No track makes a sound to export (MIDI, CV and muted tracks are left out).');
   const expect = maxFrames + SR;   // (progress: the tail is a guess)

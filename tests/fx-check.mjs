@@ -217,7 +217,7 @@ ok(P.moved.join() === 'delay,reverb' && P.off === false, 'move and off');
 ok(P.back.join() === 'reverb,delay' && P.none === 0 && P.redo.join() === 'reverb', `Undo / Redo (${P.back} · ${P.none} · ${P.redo})`);
 ok(P.full && P.removed === 3, 'four at most; remove');
 ok(P.songCap.count === 32 && P.songCap.refused && P.afterUndo === 3, `song limit (${JSON.stringify(P.songCap)}, back to ${P.afterUndo})`);
-ok(P.v2.v === P.v2.VERSION && P.v2.VERSION === 3 && P.v2.fx && P.v2.isSong, `old v2 song opens (${JSON.stringify(P.v2)})`);
+ok(P.v2.v === P.v2.VERSION && P.v2.VERSION === 4 && P.v2.fx && P.v2.isSong, `old v2 song opens (${JSON.stringify(P.v2)})`);
 ok(P.odd.n === 4 && P.odd.bass === 255 && !P.odd.extra && P.odd.ids === 4 && P.odd.midi === 0, `odd effect lists cleaned (${JSON.stringify(P.odd)})`);
 ok(P.fxNow === 3, `worklet follows (${P.fxNow})`);
 }

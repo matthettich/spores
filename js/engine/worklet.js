@@ -83,7 +83,7 @@ class SporesEngine extends AudioWorkletProcessor {
   }
 
   msg(m){
-    if (m.t === 'song'){ this.song = m.song; this.syncVoices(); this.fx.sync(m.song.tracks, m.song.bpm); }
+    if (m.t === 'song'){ this.song = m.song; this.syncVoices(); this.fx.sync(m.song.tracks, m.song.bpm); this.quiet(m.song.scenes[this.sceneKey] || Object.values(m.song.scenes)[0]); }
     else if (m.t === 'tfx'){ const ok = this.fx.init(wasmModule(m)); if (ok) this.fx.wake(); this.port.postMessage({t: 'tfx', ok}); }
     else if (m.t === 'play') this.start(m);
     else if (m.t === 'stop') this.stop();
@@ -144,6 +144,7 @@ class SporesEngine extends AudioWorkletProcessor {
   }
 
   start(m){
+    this.quietSc = null;   // the first step queues its scene's mute / solo
     if (!this.song) return;
     const s = this.song;
     this.mode = m.mode === 'song' && s.song.length ? 'song' : 'scene';
@@ -199,14 +200,16 @@ class SporesEngine extends AudioWorkletProcessor {
         this.sceneKey = s.song[this.block].scene; sc = s.scenes[this.sceneKey] || sc;
       }
     }
+    // the scene's mute / solo: notes are picked with them now; levels (tapes, effects) follow on this step's own sample
+    if (sc.mute && sc !== this.quietSc){ this.quietSc = sc; this.queue.push({frame: this.nextFrame, quiet: sc}); this.queue.sort((a, b) => a.frame - b.frame); }
     // swing: every second 16th comes late (swing 0…1 = up to half a step)
     const swing = Math.max(0, Math.min(1, s.swing || 0)), late = this.global % 2 ? swing * 0.5 * stepLen : 0;
     const frame = this.nextFrame + late, gateLen = stepLen * 0.5;
-    const solo = s.tracks.some(t => t.solo), events = [];
+    const M = sc.mute || s.tracks.map(t => t.mute), Z = sc.solo || s.tracks.map(t => t.solo), solo = Z.some(Boolean), events = [];
     s.tracks.forEach((tr, ti) => {
       const lane = sc.steps[ti]; if (!lane) return;
       const L = tr.len > 0 ? Math.min(tr.len, sc.len) : sc.len, idx = this.counter % L, st = lane[idx];
-      if (!st || (solo ? !tr.solo : tr.mute)) return;
+      if (!st || (solo ? !Z[ti] : M[ti])) return;
       if (st.chance < 100 && this.random() * 100 >= st.chance) return;
       this.trigger(ti, frame, st.note, st.vel, gateLen, st.cv);
       events.push({ti, idx, note: st.note, vel: st.vel, len: gateLen / sampleRate});
@@ -249,6 +252,7 @@ class SporesEngine extends AudioWorkletProcessor {
 
   fire(q, off){
     if (q.end) return this.bounceEnd(off);
+    if (q.quiet) return this.quiet(q.quiet);
     if (q.sync) return this.syncTapes(q, off);
     const tr = this.song.tracks[q.ti], v = tr && this.voices.get(tr.id); if (!v) return;
     const vel = Math.max(0, Math.min(127, q.vel || 100)) / 127;
@@ -264,6 +268,12 @@ class SporesEngine extends AudioWorkletProcessor {
       if (v.plays.length >= 6) v.plays.shift();
       v.plays.push({b, i: 0, g: 0.25 + 0.75 * vel});
     }
+  }
+
+  // mute / solo are per scene (compile: scenes[k].mute / solo): the tracks take the scene's as each step is decided
+  quiet(sc){
+    if (!sc || !sc.mute || !this.song) return;
+    const ts = this.song.tracks; for (let i = 0; i < ts.length; i++){ ts[i].mute = !!sc.mute[i]; ts[i].solo = !!(sc.solo && sc.solo[i]); }
   }
 
   /* ---- audio tracks (tape.js) ---- */

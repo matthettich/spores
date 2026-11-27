@@ -28,7 +28,7 @@ export const STEPS_PER_BAR = 16;
 export function compile(song, opts = {}){
   const fs = opts.fs || DEFAULT_FS;
   const tracks = song.tracks.map(t => {
-    const o = {id: t.id, type: t.type, vol: t.vol ?? 0.8, mute: !!t.mute, solo: !!t.solo, len: song.mode === 'more' ? (t.len | 0) : 0};
+    const o = {id: t.id, type: t.type, vol: t.vol ?? 0.8, mute: false, solo: false, len: song.mode === 'more' ? (t.len | 0) : 0};
     if (t.type === 'drum' || t.type === 'synth'){
       const r = resolve(t.sound, t.params);
       o.engine = r.engine; o.vals = r.vals; o.rendered = !!ENGINES[r.engine].rendered; if (r.note != null) o.drumNote = r.note;
@@ -47,7 +47,8 @@ export function compile(song, opts = {}){
   const scenes = {};
   for (const [k, sc] of Object.entries(song.scenes || {})){
     const len = Math.max(1, Math.min(4, sc.bars | 0 || 1)) * STEPS_PER_BAR;
-    scenes[k] = {len, steps: song.tracks.map(t => {
+    // mute / solo per scene (store.js v4); a track-wide flag (older in-memory songs, tests) counts in every scene
+    scenes[k] = {len, mute: song.tracks.map(t => !!((sc.mute && sc.mute[t.id]) || t.mute)), solo: song.tracks.map(t => !!((sc.solo && sc.solo[t.id]) || t.solo)), steps: song.tracks.map(t => {
       const lane = (sc.steps && sc.steps[t.id]) || [], out = new Array(len).fill(null);
       if (t.type === 'audio') return out;   // an audio track plays its take, not steps
       for (let i = 0; i < len; i++){
