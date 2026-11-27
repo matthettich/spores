@@ -13,6 +13,7 @@ import {ask, toast} from './dialog.js';
 import {openHelp} from './help.js';
 import {fileTag} from './filetag.js';
 import {mountFileMenu} from './filebar.js';
+import {masterSection} from './master.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const bars = sc => clamp((sc && sc.bars) | 0 || 1, 1, 4);
@@ -27,6 +28,8 @@ export function mountSong(root, {store, engine, files, openSteps}){
 
   /* ---- header: back to the steps, Play, Tempo ---- */
   const playBtn = el('button', {class: 'tb play', 'aria-label': 'Play or stop the song', onclick: () => togglePlay()}, '▶ Play');
+  // Loop song (song.loopSong, on by default): on = the song starts again at its end; off = it stops there
+  const loopBtn = el('button', {class: 'tb loopsong', 'aria-label': 'Loop song', onclick: () => store.edit('Loop song', s => { s.loopSong = s.loopSong === false; })}, '⟲ Loop');
   const bpm = el('input', {type: 'number', min: 20, max: 300, step: 1, 'aria-label': 'Tempo'});
   bpm.addEventListener('change', () => {
     store.edit('Tempo', s => { s.bpm = clamp(Math.round(+bpm.value) || 120, 20, 300); });
@@ -38,13 +41,14 @@ export function mountSong(root, {store, engine, files, openSteps}){
     el('span', {class: 'ico'}, '↷'), el('span', {class: 'lbl'}, 'Redo'));
 
   // the same left side as the Steps screen (js/ui/steps.js): name, Steps | Song, then Play and the tempo
-  const fileWrap = el('div', {class: 'menu-wrap'});
+  const fileWrap = el('div', {class: 'menu-wrap'}), master = masterSection({store, engine});
   const header = el('header', {class: 'hdr'},
     el('span', {class: 'app-name'}, '...Spores'), fileTag(files),
     el('div', {class: 'seg', role: 'group', 'aria-label': 'Screen'},
       el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Back to the steps', onclick: () => openSteps()}, 'Steps'),
       el('button', {class: 'tb on', 'aria-pressed': 'true', title: 'Arrange the scenes into a song'}, 'Song')),
-    el('div', {class: 'hgroup'}, playBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
+    el('div', {class: 'hgroup'}, playBtn, loopBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
+    master.node,   // master meter + volume (js/ui/master.js)
     el('span', {class: 'hspace'}),
     el('div', {class: 'hgroup'}, undoBtn, redoBtn),
     fileWrap,   // the same File menu as the Steps screen (save / open from either screen)
@@ -263,6 +267,9 @@ export function mountSong(root, {store, engine, files, openSteps}){
 
   function sync(s = store.get()){
     if (document.activeElement !== bpm) bpm.value = s.bpm;
+    master.update(s);
+    const lp = s.loopSong !== false; loopBtn.classList.toggle('on', lp); loopBtn.setAttribute('aria-pressed', lp ? 'true' : 'false');
+    loopBtn.title = lp ? 'Loop song is on: the song starts again at its end (click to stop at the end instead)' : 'Loop song is off: the song stops at its end (click to loop it)';
     undoBtn.disabled = !store.canUndo;
     redoBtn.disabled = !store.canRedo;
     drawBlocks(s);

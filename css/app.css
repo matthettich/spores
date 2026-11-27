@@ -331,3 +331,16 @@ p { margin: 0; }
 .ctxmenu button { display: block; width: 100%; }
 .ctxmenu button:disabled { color: var(--muted); cursor: default; }
 .ctxsep { height: 1px; margin: 4px 6px; background: var(--track); }
+
+/* Song screen: master meter + volume (js/ui/master.js) */
+.hgroup.master { gap: 8px; }
+.mmeter { position: relative; display: flex; flex-direction: column; gap: 3px; width: 96px; padding: 3px; border: 1px solid var(--track); border-radius: var(--radius); background: var(--panel); }
+.mmbar { position: relative; display: block; height: 6px; overflow: hidden; background: var(--panel-2); border-radius: var(--radius); }
+.mmfill { position: absolute; inset: 0; background: linear-gradient(to right, var(--meter-ok) 0 76%, var(--meter-warn) 76% 91%, var(--meter-hot) 91%); }   /* 91%: 0 dB on the -60…+6 scale */
+.mmcover { position: absolute; inset: 0; transform-origin: right; background: var(--panel-2); will-change: transform; }
+.mmbar.hot { box-shadow: inset 0 0 0 1px var(--meter-hot); }
+.mmzero { position: absolute; top: 1px; bottom: 1px; width: 1px; background: var(--muted); opacity: .6; }
+.mfader { width: 110px; height: var(--touch); padding: 0; border: 0; background: transparent; accent-color: var(--audio); }
+/* Loop song: lit = a light toggle, so it doesn't read as a second Play button */
+.tb.loopsong.on, .tb.loopsong.on:hover:not(:disabled) { background: color-mix(in srgb, var(--audio) 20%, var(--panel)); border-color: var(--audio); color: var(--ink); }
+.mval { min-width: 56px; }

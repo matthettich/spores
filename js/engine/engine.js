@@ -68,7 +68,7 @@ export function compile(song, opts = {}){
   // blocks in play order; start = the block's first song step (songmap.js: song bars × 16), for song-length takes
   const map = songMap(song);
   const order = map.blocks.map(b => ({scene: b.scene, repeat: b.repeat, loop: b.loop, start: b.startBar * STEPS_PER_BAR}));
-  return {bpm: song.bpm || 120, swing: song.mode === 'more' ? (song.swing || 0) : 0, tracks, scenes, song: order,
+  return {bpm: song.bpm || 120, master: typeof song.master === 'number' ? Math.max(0, Math.min(2, song.master)) : 1, loopSong: song.loopSong !== false, swing: song.mode === 'more' ? (song.swing || 0) : 0, tracks, scenes, song: order,
     songSteps: map.totalBars * STEPS_PER_BAR, hasAudio: tracks.some(t => t.type === 'audio')};
 }
 
@@ -134,7 +134,7 @@ export async function createEngine(){
   const recordNow = (id, note) => new Promise(res => { const r = rec.get(id); if (!r) return res();
     if (r.done.has(note)) return res(); r.want.add(note); (r.waiters.get(note) || r.waiters.set(note, []).get(note)).push(res); pump(); });
 
-  const subs = {step: [], sched: [], start: [], stop: [], level: [], tlevels: [], rec: [], take: [], input: [], missing: []}, emit = (k, m) => subs[k].forEach(f => { try { f(m); } catch (e) { console.error(e); } });
+  const subs = {step: [], sched: [], start: [], stop: [], level: [], tlevels: [], master: [], rec: [], take: [], input: [], missing: []}, emit = (k, m) => subs[k].forEach(f => { try { f(m); } catch (e) { console.error(e); } });
   let song = null, pending = [], raf = 0, playing = false;
 
   /* context time ↔ performance.now(), for the moment a sound comes out of the speakers. getOutputTimestamp() jumps
@@ -183,7 +183,7 @@ export async function createEngine(){
     if (m.t === 'step'){ pending.push(m); emit('sched', m); if (!raf) raf = requestAnimationFrame(tick); }
     else if (m.t === 'start'){ playing = true; emit('start', m); }
     else if (m.t === 'stop'){ playing = false; pending = []; emit('stop', m); }
-    else if (m.t === 'tlevels') emit('tlevels', m.lv);   // track meters: {trackId: peak} (js/ui/trackmeters.js)
+    else if (m.t === 'tlevels'){ emit('tlevels', m.lv); emit('master', {L: m.mL || 0, R: m.mR || 0}); }   // track meters: {trackId: peak} (trackmeters.js); the master's peaks (song.js)
   };
 
   const eng = {

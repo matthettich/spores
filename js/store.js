@@ -25,7 +25,7 @@ import {isFxType, fxClean, MAX_FX} from './engine/fx.js';
 export const TRACK_COLOURS = ['pink', 'orange', 'mustard', 'green', 'teal', 'blue', 'purple', 'grey'];
 export const VERSION = 4, MAX_TRACKS = 16, MAX_AUDIO_TRACKS = 4, CLIP_BARS = [1, 2, 4, 8], SCENES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), STORAGE_KEY = 'spores.song';
 const HISTORY = 80, MERGE_MS = 600;
-const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Swing', 'Step velocity', 'Step chance', 'Effect setting']);
+const MERGE_LABELS = new Set(['Sound setting', 'Volume', 'Master volume', 'Swing', 'Step velocity', 'Step chance', 'Effect setting']);
 const TYPES = ['drum', 'synth', 'midi', 'cv', 'audio'];
 // a new loop take's playback settings (seconds for offset and fades; a few ms of fade keeps the loop seam from clicking)
 export const CLIP_DEFAULTS = {gain: 1, offset: 0, fadeIn: 0.004, fadeOut: 0.004, reverse: false};
@@ -118,7 +118,7 @@ export function newSong(){
     newTrack('drum', 'Open hat'), newTrack('drum', 'Tom'), newTrack('synth', 'Acid bass', 'Bass'), newTrack('synth', 'Square lead', 'Lead'),
   ];
   tracks[7].oct = 4;
-  return {v: VERSION, bpm: 120, swing: 0, key: 'C', scale: 'minor', lock: true, tracks,
+  return {v: VERSION, bpm: 120, swing: 0, key: 'C', scale: 'minor', lock: true, master: 1, loopSong: true, tracks,
     scenes: {A: {name: 'Scene A', bars: 1, steps: {}, clips: {}}}, song: [{scene: 'A', repeat: 4}],
     presets: [], link: {seedsPort: '', seedsCh: 16, clock: true}, mode: 'simple'};
 }
@@ -180,7 +180,9 @@ export function migrate(input){
     s.v = 4;
   }
   const base = newSong();
-  for (const k of ['bpm', 'swing', 'key', 'scale', 'lock', 'mode']) if (s[k] === undefined) s[k] = base[k];
+  for (const k of ['bpm', 'swing', 'key', 'scale', 'lock', 'mode', 'master', 'loopSong']) if (s[k] === undefined) s[k] = base[k];
+  // master: the master volume (gain, 1 = 0 dB, up to 2 ≈ +6 dB; the Song screen's fader); loopSong: the song starts again at its end
+  s.master = typeof s.master === 'number' && isFinite(s.master) ? Math.max(0, Math.min(2, s.master)) : 1; s.loopSong = s.loopSong !== false;
   s.tracks = Array.isArray(s.tracks) && s.tracks.length ? s.tracks.slice(0, MAX_TRACKS) : base.tracks;
   s.tracks.forEach(fixTrack);
   const audioIds = new Set(s.tracks.filter(t => t.type === 'audio' && !isSongTrack(t)).map(t => t.id));   // (loop tracks: song-length ones have no clips)

@@ -144,7 +144,7 @@ class SporesEngine extends AudioWorkletProcessor {
   }
 
   start(m){
-    this.quietSc = null;   // the first step queues its scene's mute / solo
+    this.quietSc = null; this.ending = false; this.queue = this.queue.filter(q => !q.stopSong);   // the first step queues its scene's mute / solo; no old Loop-song stop
     if (!this.song) return;
     const s = this.song;
     this.mode = m.mode === 'song' && s.song.length ? 'song' : 'scene';
@@ -169,7 +169,7 @@ class SporesEngine extends AudioWorkletProcessor {
     if (this.rec && this.rec.kind === 'song') this.rec.cap.finish(currentFrame + this.rec.lat);   // kept: it ends here
     else if (this.rec) this.recordEnd('cancelled');
     for (const v of this.tapes.values()) v.release();
-    this.queue = this.queue.filter(q => !q.on && !q.sync);   // drop notes not yet started; let note-offs through
+    this.queue = this.queue.filter(q => !q.on && !q.sync && !q.stopSong); this.ending = false;   // drop notes not yet started (and a Loop-song stop); let note-offs through
     for (const [, v] of this.voices){ if (v.synth) v.synth.off(); if (v.pump) v.pump.allOff(); if (v.engine === 'cv') v.gate = false; }
     this.port.postMessage({t: 'stop', time: currentFrame / sampleRate});
   }
@@ -195,6 +195,8 @@ class SporesEngine extends AudioWorkletProcessor {
           if (this.block === 0){   // the song's end: it starts again from bar 0; a song take being recorded ends here
             this.songStep = 0;
             if (this.rec && this.rec.kind === 'song') this.rec.cap.finish(Math.round(this.nextFrame) + this.rec.lat);
+            // Loop song off (song.loopSong false): stop on the song's last sample instead of starting again
+            if (s.loopSong === false && !this.bounce){ this.ending = true; this.queue.push({frame: this.nextFrame, stopSong: true}); this.queue.sort((a, b) => a.frame - b.frame); return; }
           }
         }
         this.sceneKey = s.song[this.block].scene; sc = s.scenes[this.sceneKey] || sc;
@@ -252,6 +254,7 @@ class SporesEngine extends AudioWorkletProcessor {
 
   fire(q, off){
     if (q.end) return this.bounceEnd(off);
+    if (q.stopSong){ this.ending = false; return this.stop(); }
     if (q.quiet) return this.quiet(q.quiet);
     if (q.sync) return this.syncTapes(q, off);
     const tr = this.song.tracks[q.ti], v = tr && this.voices.get(tr.id); if (!v) return;
@@ -397,7 +400,7 @@ class SporesEngine extends AudioWorkletProcessor {
     if (this.rec) this.recordFeed(inp, f0, n);
     if (this.ping && this.ping.cap.feed(inp, f0, n)){ const d = this.ping.cap.buf; this.port.postMessage({t: 'pong', data: d, at: this.ping.at}, [d.buffer]); this.ping = null; }
     const CV = outputs[1] || []; for (const ch of CV) ch.fill(0);
-    if (this.playing && this.song) while (this.nextFrame < f0 + n + LOOKAHEAD * sampleRate){
+    if (this.playing && this.song && !this.ending) while (!this.ending && this.nextFrame < f0 + n + LOOKAHEAD * sampleRate){
       if (bo && bo.left-- <= 0){   // export: every step has been played; the end is queued on the sample after the last
         if (!bo.ending){ bo.ending = true; this.queue.push({frame: this.nextFrame, end: true}); this.queue.sort((a, b) => a.frame - b.frame); }
         break;
@@ -434,7 +437,15 @@ class SporesEngine extends AudioWorkletProcessor {
       for (const b of bo.bufs.values()){ out[2 * b.k].set(b.L); out[2 * b.k + 1].set(b.R); }
       bo.take(null, null, f0, n); return true;
     }
-    for (let i = 0; i < n; i++){ L[i] = Math.tanh(L[i]); if (R !== L) R[i] = Math.tanh(R[i]); }   // gentle master clip
+    // the master volume (song.master, eased over the block so the fader doesn't click), its meter, then a gentle clip
+    const mg0 = this.mg ?? (this.song.master ?? 1), mg1 = this.song.master ?? 1, dm = (mg1 - mg0) / n; this.mg = mg1;
+    let pL = this.mpL || 0, pR = this.mpR || 0;
+    for (let i = 0; i < n; i++){
+      const g = mg0 + dm * i; L[i] *= g; const a = L[i] < 0 ? -L[i] : L[i]; if (a > pL) pL = a;
+      if (R !== L){ R[i] *= g; const c = R[i] < 0 ? -R[i] : R[i]; if (c > pR) pR = c; }
+      L[i] = Math.tanh(L[i]); if (R !== L) R[i] = Math.tanh(R[i]);
+    }
+    this.mpL = pL; this.mpR = R !== L ? pR : pL;
     if (bo) bo.take(L, R, f0, n); else this.postLevels();
     return true;
   }
@@ -470,7 +481,8 @@ class SporesEngine extends AudioWorkletProcessor {
     if (++this.tlvBlocks < 6) return;
     this.tlvBlocks = 0; let any = false; const lv = {};
     for (const [id, p] of this.tlv){ if (p > 1e-4) any = true; lv[id] = p; this.tlv.set(id, 0); }
-    if (any || this.tlvLive) this.port.postMessage({t: 'tlevels', lv});
+    const mL = this.mpL || 0, mR = this.mpR || 0; this.mpL = this.mpR = 0; if (mL > 1e-4 || mR > 1e-4) any = true;
+    if (any || this.tlvLive) this.port.postMessage({t: 'tlevels', lv, mL, mR});   // mL / mR: the master's peaks, before the clip
     this.tlvLive = any;
   }
 

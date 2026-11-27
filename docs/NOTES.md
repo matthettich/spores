@@ -949,3 +949,9 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
   Stems leave out a track muted in every scene played. Copy / paste carries mutes (pasted tracks don't carry solos).
   Tested: tests/scene-mute-check.mjs (8 ok); engine, fx, export (solo now in every scene: an fx level changing mid-song is
   block-quantised, ~−88 dB between two renders), audio, audio-song, cv-render, clipboard checks.
+- Song screen: master section (js/ui/master.js): stereo peak meter (−60…+6 dB, red hold over 0 dB) and a fader for
+  song.master (gain 0…2, default 1; one Undo per drag; double-click = 0 dB). The worklet applies it before the master clip
+  (eased over a block), so exports follow it; stems stay as they are. Peaks ride on the 'tlevels' message (mL / mR) →
+  engine.on('master').
+- Loop song (song.loopSong, default on; button beside Play on the Song screen): off = the worklet queues a stop on the
+  song's last sample instead of wrapping (cancelled by Stop / Play). Tested: tests/master-check.mjs, tests/loop-song-check.mjs.
