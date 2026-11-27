@@ -9,6 +9,7 @@ import {songLanes} from './songlane.js';
 import {STEPS_PER_BAR} from '../engine/engine.js';
 import {noteColor} from '../scale.js';
 import {el} from './dom.js';
+import {tempoPresetSelect} from './tempopresets.js';
 import {ask, toast} from './dialog.js';
 import {openHelp} from './help.js';
 import {fileTag} from './filetag.js';
@@ -47,7 +48,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
     el('div', {class: 'seg', role: 'group', 'aria-label': 'Screen'},
       el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Back to the steps', onclick: () => openSteps()}, 'Steps'),
       el('button', {class: 'tb on', 'aria-pressed': 'true', title: 'Arrange the scenes into a song'}, 'Song')),
-    el('div', {class: 'hgroup'}, playBtn, loopBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
+    el('div', {class: 'hgroup'}, playBtn, loopBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM')), tempoPresetSelect(store)),
     master.node,   // master meter + volume (js/ui/master.js)
     el('span', {class: 'hspace'}),
     el('div', {class: 'hgroup'}, undoBtn, redoBtn),

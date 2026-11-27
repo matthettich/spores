@@ -2,6 +2,14 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-27 — IDM pink & green skin and tempo presets (Claude, branch `skin-tempo`, not pushed)
+- **Skin `idmpg`** (css/app.css, js/ui/skin.js, 4 swatches `--sw-idmpg-*`): from ...Thunder Plus' IDM pink & green: paper `--mxbg`
+  #e9e8e3 = bench, `--mxpanel` #f2f1ec = panel, `--mxpanel2` #dddcd5 = panel-2, ink `--mx` #141414, muted `--mx2` #505050, `--mxdim`
+  #bdbcb6 = track, pink `--mxsoft` #ff2d8a = gate / selection, green `--mxbus` #1f9e5a = audio, play orange #ff4d00 = video / solo,
+  JetBrains Mono (falls back to the system mono), square corners, uppercase letter-spaced brand. Spores' own: step greys, gate-dark, record red.
+- **Tempo presets** (`js/ui/tempopresets.js`, one line each in steps.js / song.js): a "Style" list beside BPM, 23 usual tempos in
+  4 groups; picking one is the same 'Tempo' edit as the BPM field (one Undo). `tests/tempo-skin-check.mjs` covers both and the skin.
+
 ## 2026-11-27 — effect presets on every effect card (Claude, branch `fx-presets`, not pushed)
 - **Done:** a preset list (aria-label "<Effect> preset") in each Effects card, under the buttons: Default first, then the
   effect's presets; it shows "Custom" when the values match none. Picking one is ONE undo step ('Effect preset',

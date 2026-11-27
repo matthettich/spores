@@ -94,6 +94,7 @@ p { margin: 0; }
 .tempo { display: flex; align-items: baseline; gap: 4px; }
 .tempo input { width: 58px; padding: 0 4px; border: 0; background: transparent; text-align: right; font-size: 22px; font-weight: 600;
   -moz-appearance: textfield; appearance: textfield; }
+.hdr select.tempopre { width: 78px; padding: 0 2px; font-size: 13px; }
 .tempo input:hover, .tempo input:focus { background: var(--panel-2); }
 .tempo input::-webkit-inner-spin-button, .tempo input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .hdr select[aria-label=Key] { min-width: 0; }

@@ -20,6 +20,7 @@ import {nudgeNote} from './stepedit.js';
 import {audioLane} from './audiolane.js';
 import {createRecStatus} from './recstatus.js';
 import {el} from './dom.js';
+import {tempoPresetSelect} from './tempopresets.js';
 
 const TYPE = {drum: 'Drum', synth: 'Synth', midi: 'MIDI', cv: 'CV', audio: 'Audio'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -90,7 +91,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     el('div', {class: 'seg', role: 'group', 'aria-label': 'Screen'},
       el('button', {class: 'tb on', 'aria-pressed': 'true', title: 'The step grid'}, 'Steps'),
       el('button', {class: 'tb', 'aria-pressed': 'false', title: 'Arrange the scenes into a song', onclick: () => openSong()}, 'Song')),
-    el('div', {class: 'hgroup'}, playBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM'))),
+    el('div', {class: 'hgroup'}, playBtn, el('label', {class: 'tempo'}, bpm, el('span', {class: 'cap'}, 'BPM')), tempoPresetSelect(store)),
     el('div', {class: 'hgroup'}, el('span', {class: 'cap opt'}, 'Key'), keySel, scaleSel, lockBtn),
     el('div', {class: 'hgroup scenegrp'}, el('span', {class: 'cap opt'}, 'Scene'), sceneWrap, addSceneBtn, copySceneBtn),
     el('span', {class: 'hspace'}),
