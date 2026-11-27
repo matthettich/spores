@@ -21,7 +21,7 @@ let clip = null;   // {kind: 'scene', from, sc} | {kind: 'track', from, scene, t
 
 /* ---- a small menu at the pointer ---- */
 let openMenu = null;
-function contextMenu(x, y, items){
+export function contextMenu(x, y, items){
   if (openMenu) openMenu();
   const menu = el('div', {class: 'menu ctxmenu', role: 'menu'});
   const close = () => { menu.remove(); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', key, true); window.removeEventListener('blur', close); openMenu = null; };
@@ -40,7 +40,7 @@ function contextMenu(x, y, items){
   openMenu = close;
 }
 // right-click, or the Menu key / Shift+F10 on a focused element
-function onMenu(root, sel, fn){
+export function onMenu(root, sel, fn){
   root.addEventListener('contextmenu', e => { const t = e.target.closest(sel); if (!t || !root.contains(t)) return; e.preventDefault(); fn(t, e.clientX, e.clientY); });
   root.addEventListener('keydown', e => {
     if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) return;

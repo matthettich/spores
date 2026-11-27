@@ -2,6 +2,14 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-27 — Song screen: pick several blocks, Copy / Paste / Duplicate (Claude, branch `q-songsel`, not pushed)
+- `js/ui/songselect.js` (new; hooks in song.js: the import, a paste bar, one `multi.draw()` line) + `css/songselect.css`. Shift-click picks a
+  run from the anchor; right-click / Menu key / Shift+F10 on a block: Copy, Paste…, Duplicate (menu helpers `contextMenu` / `onMenu` now
+  exported from clipboard.js). Paste waits for a click: edge of a block = insert there (marker), middle = replace that block, or the whole
+  pick if inside it. Escape / Cancel drops it. 128-block limit explained on disabled items. One Undo each.
+- Tested: `tests/song-select-check.mjs` (PORT env), clipboard-check, loop-song-check pass. save-check's two 1280x760 header-height FAILs
+  also fail on `dev` without this change (not caused by it).
+
 ## 2026-11-27 — IDM pink & green skin and tempo presets (Claude, branch `skin-tempo`, not pushed)
 - **Skin `idmpg`** (css/app.css, js/ui/skin.js, 4 swatches `--sw-idmpg-*`): from ...Thunder Plus' IDM pink & green: paper `--mxbg`
   #e9e8e3 = bench, `--mxpanel` #f2f1ec = panel, `--mxpanel2` #dddcd5 = panel-2, ink `--mx` #141414, muted `--mx2` #505050, `--mxdim`
@@ -983,7 +991,7 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
    songs unchanged (bump v + migrate if the format changes). Engine: AcidCore is mono; the pump synths (Coil / Orbit / Fold)
    are already poly (PumpVoice), rendered engines play several bufs; MIDI / CV tracks: MIDI can send chords, CV cannot.
    UI: how to enter chords simply (e.g. a chord picker in the step panel: root + type, or tap several notes). 🔴 Claude.
-5. Song screen: Shift-click to select several blocks; right-click → Copy / Paste / Duplicate the selection; then click a
+5. (DONE 2026-11-27, q-songsel) Song screen: Shift-click to select several blocks; right-click → Copy / Paste / Duplicate the selection; then click a
    place in the song to paste-insert (between blocks) or paste-replace (over blocks). One Undo step each.
 6. Some "cool flare": animations like Thunder Plus' FX-bar ones (its dancing dogs / scopes / LED animations; see
    thunder-plus index.html .dogs and the FX bar). Where in Spores is open: e.g. a small animated strip in the header or
