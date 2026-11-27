@@ -15,6 +15,7 @@ import {openHelp} from './help.js';
 import {fileTag} from './filetag.js';
 import {mountFileMenu} from './filebar.js';
 import {masterSection} from './master.js';
+import {songSelect} from './songselect.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const bars = sc => clamp((sc && sc.bars) | 0 || 1, 1, 4);
@@ -69,12 +70,16 @@ export function mountSong(root, {store, engine, files, openSteps}){
     el('p', {class: 'hint'}, 'Record once over the whole song. Tap a scene block above to record from it.'));
   const lanes = songLanes({store, engine, blocksEl, stripsEl, cardsEl, getSel: () => selBlock});
 
+  const pasteHint = el('p', {class: 'pastebar', hidden: true});
+  const multi = songSelect({store, blocksEl, hintEl: pasteHint, list: () => blocks(), getSel: () => selBlock, setSel: v => { selBlock = v; }, redraw: () => sync()});
+
   const body = el('div', {class: 'songbody'},
     el('section', {class: 'ssection'},
       el('div', {class: 'sline-h'},
         el('span', {class: 'psec'}, 'Song'),
         addBtn),
       el('p', {class: 'hint'}, 'Scenes play in order, then the song starts again. Drag to reorder; Loop repeats one scene forever.'),
+      pasteHint,
       el('div', {class: 'sarea'}, sinner),
       posbar,
       posline,
@@ -210,6 +215,7 @@ export function mountSong(root, {store, engine, files, openSteps}){
     list.forEach(({b, i}) => blocksEl.append(blockCard(s, b, i)));
     if (selBlock != null && selBlock >= list.length) selBlock = null;
     if (selBlock != null) blocksEl.children[selBlock].classList.add('sel');
+    multi.draw();
   }
 
   function drawLibrary(s){
