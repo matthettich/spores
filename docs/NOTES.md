@@ -2,6 +2,42 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-26 — audio tracks B2: the UI for loop takes done (Claude agent, on `dev`, pushed)
+- **Done:** "+ Add track ▾ › Audio track (record your voice)" (disabled with the reason at 4 audio tracks / 16 tracks; names
+  "Voice 1…"); row "Audio · 2 bars" / "Audio · no take yet" (kept visible on laptop widths, name on one line), teal.
+  Steps lane (`js/ui/audiolane.js`): inert cells (so it lines up and the playhead highlights the current step) under a
+  canvas waveform of this scene's take (`js/ui/peaks.js`: 1024 min/max bins, gain / reverse / offset applied when drawn),
+  repeated at 30 % when the scene is longer than the take; "No take in this scene · press Record", "Counting in…",
+  "Recording…". No melody lane for audio. Panel (`js/ui/audiopanel.js`): Record / ■ Stop, count-in "1 2 3 4", "Recording…
+  bar n of m", loop 1/2/4/8 (`track.loop`, default 2, validated in store.js; it is the length of the NEXT take; a note shows
+  when the scene's take differs), input device + channel (only > 2), level meter (dB scale, quick rise / slow fall),
+  Hear myself (off) + headphones line, Keep going (this page only), Volume / Colour. More: gain (dB), start offset,
+  fades (ms), reverse, Remove this take (asks), latency value, Adjust (ms), "Test latency…" (`audiolatency.js`: explains,
+  runs measureLatency without applying, "Use this" / "Try again" / "Keep what I had"). Sliders write on release (one Undo
+  step per drag; store.js MERGE_LABELS untouched). `js/ui/recstatus.js` turns engine 'rec' events into phase + bar / beat.
+  Song screen: a teal bar in each block's mini grid (audio rows always listed; the mini grid is capped at 8 rows). Help:
+  a "Recording your voice" paragraph. Copy scene copies takes; Delete track drops its takes (Undo brings them back).
+  The microphone closes when a non-audio track is selected (no recording dot in the tab); it opens on "Turn on the
+  microphone", on Record, or by itself when Chrome already allows it.
+- **Tested:** new `tests/audio-ui-check.mjs` (headless Chrome, fake mic), all pass: add; 5th refused with reason; empty lane
+  text; panel contents and defaults; loop length + Undo; meter moves; 1-bar take (count-in 1-2-3-4, "Recording… bar 1 of 1",
+  waveform drawn, row text, Undo removes, Redo restores); playhead on the lane; More controls write and Undo; latency
+  adjust (kept in localStorage); Test dialog text; Keep going (two takes, Stop, Undo); Song mini bar; Save → Open in a
+  fresh profile keeps the take visible; permission denied → plain message; header one row and no page scroll at 1280x760 and
+  1440x830 in all three skins, Simple and More; no control under 44 px (checkboxes counted by their row); no console
+  errors. Screenshots of the Steps screen with an audio track in Minimal, Black and Pastel looked right. Still pass:
+  audio-check (30), engine-check, save-check, cv-ui-check.
+- **Not tested:** a real microphone or interface (channel picker with > 2 channels, the real latency test through air),
+  a real Mac, touch, the permission prompt itself (Chrome's UI is auto-accepted here), Safari / Firefox. The fake mic
+  is a beep, so waveforms are spikes; real voice shapes not seen.
+- **Decisions (owner may change):** loop length is a setting of the track for the next take (default 2 bars), not the
+  take's; Keep going and the mic choice are not Undo steps (not song data); latency "Use this" is per computer; a take
+  longer than its scene shows only the part inside the scene.
+- **Odd:** the engine emits 'rec' done before `engine.recording` goes false, so the UI relies on its own phase. The
+  Chrome fake mic alternates silence and full scale, so the meter jumps between empty and full in tests.
+- **Not done (next):** song-length audio layer on the Song screen, effects, export (C), a waveform on the Song mini grid
+  (it is a bar), per-take colour, drag a take between scenes.
+
 ## 2026-11-26 — audio tracks B1: engine + data for loop takes done (Claude agent, on `dev`, pushed)
 - **Done:** song `v` 2 (v1 migrates: every scene gets `clips: {}`). Track type `audio` (`MAX_AUDIO_TRACKS` 4,
   `canAddAudio(song)`, `newTrack('audio')` = "Voice", teal by default). `scene.clips[trackId] = newClip({id, bars, bpm, sr})`
