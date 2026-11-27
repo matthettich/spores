@@ -27,6 +27,7 @@ js/ui/song.js       Song screen
 js/ui/panel.js      right-hand track / step panel
 js/zip.js           tiny stored-zip writer / reader (crc32 from Thunder Plus)
 js/wav.js           WAV writer (32-bit float for takes, 16 / 24-bit PCM) and reader
+js/songmap.js       song bars ↔ blocks (song-length takes: where they play, and the Song screen's lane)
 js/audiostore.js    recorded takes' samples by clip id (IndexedDB + memory); takes.js puts a take into the song
 js/ui/savefile.js   Save, Save as…, Save a copy…, Open…, Open Recent (desktop); Ctrl/Cmd+S / Shift+S / O
 js/ui/filestate.js  the current file, unsaved-changes dot, remembered Chrome file handle; filetag.js shows it in the header
@@ -41,6 +42,7 @@ js/engine/          🔴 Claude only: clock worklet, voices, CV out
   render-worker.js    records Modal / Scanned notes off the audio thread (GENERATED: rendered.js)
   cv.js               CV: note → voltage, the pitch detector, Tune CV and the DC check
   tape.js             audio tracks in the worklet: loop-take playback, clicks, input capture
+  songtape.js         song-length audio takes in the worklet: playback by song bar, open-ended capture
   recorder.js         the input, level meter, Hear myself, latency test and record() (page side)
 js/ui/cv.js         a CV track's panel section, Tune CV… and Test outputs…
 tools/gen-sounds.mjs  re-copies the generated engine files from a Thunder Plus checkout
@@ -74,7 +76,10 @@ song = {
       params: {},                    // drum / synth: the sound's settings she has changed (settingsFor in sounds.js)
       oct: 3,                        // synth / midi / cv: root octave (2 = C2 = MIDI 36)
       len: 0,                        // More: per-track length in steps (0 = the scene's)
-      vol: 0.8, mute: false, solo: false }   // midi also has midi.clock: send clock + Start / Stop to its port
+      vol: 0.8, mute: false, solo: false },  // midi also has midi.clock: send clock + Start / Stop to its port
+    { id: 't10', type: 'audio', span: 'song',  // a song-length audio track (counts toward the 4): no scene clips,
+      take: { id: 'c…', sr: 48000, bpm: 120, startBar: 4,   // one take from song bar 4 (songmap.js), or null;
+              gain: 1, fadeIn: 0.004, fadeOut: 0.004, trimStart: 0, trimEnd: 0 } }   // seconds; plays in song mode only
   ],
   scenes: {                          // A–H
     A: { name: 'Intro groove', bars: 1,

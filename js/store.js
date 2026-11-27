@@ -49,12 +49,26 @@ export const canAddAudio = song => song.tracks.length < MAX_TRACKS && song.track
 export function newClip({id, bars, bpm, sr}, extra = {}){
   return Object.assign({id, bars, bpm, sr}, CLIP_DEFAULTS, extra);
 }
+/* A song-length take, as stored in track.take of an audio track with span 'song' (samples: audiostore.js under `id`,
+   audio/<id>.wav in a .spores file, exactly like loop takes). startBar: the song bar (from 0, counted through the
+   blocks and their repeats: js/songmap.js) where the take's first sample plays. bpm / sr: what it was recorded at
+   (another song tempo = varispeed, its bar count stays). gain; fadeIn / fadeOut (seconds, at the trimmed edges);
+   trimStart / trimEnd (seconds hidden at either end; the take stays anchored, so trimming never moves the audio). */
+export const SONG_TAKE_DEFAULTS = {gain: 1, fadeIn: 0.004, fadeOut: 0.004, trimStart: 0, trimEnd: 0};
+export function newSongTake({id, sr, bpm, startBar = 0}, extra = {}){
+  return Object.assign({id, sr, bpm, startBar: Math.max(0, startBar | 0)}, SONG_TAKE_DEFAULTS, extra);
+}
+// a new song-length audio track ("Song voice 1…" is the UI's job; it counts as one of the MAX_AUDIO_TRACKS)
+export function newSongTrack(name){ return Object.assign(newTrack('audio', undefined, name || 'Song voice'), {span: 'song', take: null}); }
+export const isSongTrack = t => !!t && t.type === 'audio' && t.span === 'song';
+
 export const newClipId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 // every clip id the song refers to (Save writes these; the engine loads these)
 export function clipIds(song){
   const ids = new Set();
   for (const sc of Object.values(song.scenes || {})) for (const c of Object.values(sc.clips || {})) if (c && c.id) ids.add(c.id);
+  for (const t of song.tracks || []) if (isSongTrack(t) && t.take && t.take.id) ids.add(t.take.id);
   return ids;
 }
 
@@ -64,6 +78,13 @@ function fixClip(c){
   return {id: c.id, bars: CLIP_BARS.includes(c.bars) ? c.bars : 1, bpm: num(c.bpm, 120, 20, 300), sr: num(c.sr, 48000, 8000, 192000),
     gain: num(c.gain, 1, 0, 4), offset: num(c.offset, 0, -60, 60), fadeIn: num(c.fadeIn, CLIP_DEFAULTS.fadeIn, 0, 10),
     fadeOut: num(c.fadeOut, CLIP_DEFAULTS.fadeOut, 0, 10), reverse: !!c.reverse};
+}
+function fixSongTake(c){
+  if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !/^[\w-]{1,64}$/.test(c.id)) return null;
+  const D = SONG_TAKE_DEFAULTS;
+  return {id: c.id, sr: num(c.sr, 48000, 8000, 192000), bpm: num(c.bpm, 120, 20, 300), startBar: Math.round(num(c.startBar, 0, 0, 9999)),
+    gain: num(c.gain, D.gain, 0, 4), fadeIn: num(c.fadeIn, D.fadeIn, 0, 60), fadeOut: num(c.fadeOut, D.fadeOut, 0, 60),
+    trimStart: num(c.trimStart, 0, 0, 3600), trimEnd: num(c.trimEnd, 0, 0, 3600)};
 }
 
 export function newSong(){
@@ -126,7 +147,7 @@ export function migrate(input){
   for (const k of ['bpm', 'swing', 'key', 'scale', 'lock', 'mode']) if (s[k] === undefined) s[k] = base[k];
   s.tracks = Array.isArray(s.tracks) && s.tracks.length ? s.tracks.slice(0, MAX_TRACKS) : base.tracks;
   s.tracks.forEach(fixTrack);
-  const audioIds = new Set(s.tracks.filter(t => t.type === 'audio').map(t => t.id));
+  const audioIds = new Set(s.tracks.filter(t => t.type === 'audio' && !isSongTrack(t)).map(t => t.id));   // (loop tracks: song-length ones have no clips)
   const scenes = {};
   for (const [k, sc] of Object.entries(s.scenes && typeof s.scenes === 'object' ? s.scenes : {})){
     if (!SCENES.includes(k) || !sc || typeof sc !== 'object') continue;
@@ -162,6 +183,8 @@ function fixTrack(t){
   if (typeof t.oct !== 'number') t.oct = 3;
   if (typeof t.len !== 'number') t.len = 0;
   if (t.loop !== undefined && !CLIP_BARS.includes(t.loop)) delete t.loop;   // audio track: bars of the next take (1 | 2 | 4 | 8; missing = 2)
+  if (isSongTrack(t)) t.take = fixSongTake(t.take);   // song-length audio track: its one take (or null)
+  else { delete t.span; delete t.take; }
   if (t.color !== undefined && !TRACK_COLOURS.includes(t.color)) delete t.color;   // optional; old songs have none
   if (typeof t.seedsNote !== 'number') t.seedsNote = GM[t.sound] ?? 36;
   t.mute = !!t.mute; t.solo = !!t.solo;
