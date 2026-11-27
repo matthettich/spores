@@ -248,7 +248,7 @@ const data = await p.evaluate(async () => {
 });
 ok(JSON.stringify(data.map) === '{"total":3,"starts":[0,1],"loopAt":-1}' && data.b2 === 1 && JSON.stringify(data.bb) === '[{"index":0,"rep":0,"barInScene":0},{"index":1,"rep":0,"barInScene":0},{"index":1,"rep":1,"barInScene":0},null]' && data.bars === 3,
   'songMap / barToBlock / blockToBar / takeBars: ' + JSON.stringify(data.map) + ' ' + JSON.stringify(data.bb));
-ok(data.T.span === 'song' && data.T.take === null && data.L.span === undefined && data.L.take === undefined && !data.clipsA.length && data.v === 4,
+ok(data.T.span === 'song' && data.T.take === null && data.L.span === undefined && data.L.take === undefined && !data.clipsA.length && data.v === 5,
   'migrate: bad take → null, stray span / take removed from a loop track, no scene clips on a song track, v = 4 (current; per-scene mute bumped it)');
 ok(data.can3 === true && data.can4 === false, 'song-length tracks count toward the 4 audio tracks');
 ok(!p.errs.length, 'no console errors: ' + p.errs.join(' | '));

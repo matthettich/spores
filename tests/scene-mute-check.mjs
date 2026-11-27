@@ -25,7 +25,7 @@ ok(r.kickA > 0.05, 'scene A: the Kick plays (' + r.kickA.toFixed(3) + ')');
 ok(r.kickB < 1e-4, 'scene B: the Kick is muted there (' + r.kickB.toExponential(1) + ')');
 ok(r.snareB > 0.02, 'scene B: the soloed Snare plays (' + r.snareB.toFixed(3) + ')');
 ok(r.bassB < 1e-4, 'scene B: the Bass is soloed out (' + r.bassB.toExponential(1) + ')');
-ok(r.old.v === 4 && r.old.A.x1 && r.old.B.x1 && !r.old.trackFlag, 'an old v3 song: its muted track is muted in every scene: ' + JSON.stringify(r.old));
+ok(r.old.v === 5 && r.old.A.x1 && r.old.B.x1 && !r.old.trackFlag, 'an old v3 song: its muted track is muted in every scene: ' + JSON.stringify(r.old));
 // UI: M in scene A, then look at B
 const sc = k => p.evaluate(k => [...document.querySelectorAll('.scenewrap .scn')].find(x => x.textContent.trim() === k).click(), k);
 await sc('A'); await new Promise(r => setTimeout(r, 150));

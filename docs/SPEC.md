@@ -83,7 +83,7 @@ It asks where to save first (desktop: the system dialog, then Show in Finder; Ch
 
 ```js
 song = {
-  v: 3,                              // 3: track effects (track.fx); 2: audio tracks (scene.clips); older files migrate
+  v: 5,                              // 5: chords (step.chord); 4: mute / solo per scene; 3: track effects (track.fx); 2: audio tracks; older files migrate
   bpm: 120, swing: 0,                // swing hidden behind More
   key: 'C', scale: 'minor', lock: true,
   tracks: [                          // 8 by default, + Add track up to 16
@@ -105,7 +105,8 @@ song = {
   ],
   scenes: {                          // A–H
     A: { name: 'Intro groove', bars: 1,
-         steps: { t1: [ { on: true, deg: 0, vel: 100, chance: 100 } /* × 16 × bars */ ] },
+         steps: { t1: [ { on: true, deg: 0, vel: 100, chance: 100 } /* × 16 × bars */ ],
+                  t7: [ { on: true, deg: 0, chord: [2, 4], vel: 100, chance: 100 } ] },   // a chord step (v5)
          clips: { t9: { id: 'c…', bars: 2, bpm: 120, sr: 48000, gain: 1, offset: 0,   // one loop take per audio track;
                         fadeIn: 0.004, fadeOut: 0.004, reverse: false } } }            // samples: audiostore / audio/<id>.wav
   },
@@ -117,6 +118,9 @@ song = {
 
 `deg` = scale steps above the track's root note (key + `oct`) (0 = root, 7 = root an octave up). Storing scale steps, not MIDI
 notes, keeps melodies in key when the key changes. `js/scale.js` turns `deg` into a MIDI note. Missing steps = off.
+`chord` (optional, v5, `js/chord.js`) = the step's other notes as scale steps above `deg` (1–21, up to 3, so ≤ 4 notes): `deg` is
+always the lowest note, so moving it moves the whole chord. Synth tracks play every note; MIDI tracks send every note-on / off
+together; CV tracks play `deg` only (one pitch output); drum tracks ignore it.
 
 ## Note colours (for melodies)
 

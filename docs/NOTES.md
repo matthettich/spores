@@ -2,6 +2,27 @@
 
 Agents: add a dated entry when you stop. Newest at the top.
 
+## 2026-11-27 — queued request 4: chords, up to 4 notes per step (Claude, branch `q-chords`, not pushed)
+- **Data (v5):** `step.chord` = other notes as scale steps above `deg` (js/chord.js `cleanChord` / `stepDegs` / `stepMidi` / `chordName`);
+  `deg` stays the lowest note, so drag / arrows / ▲ ▼ move the whole chord with no extra code. v4 → v5 migration changes nothing;
+  `migrate` cleans every step's `chord` (whole numbers 1..21, unique, sorted, ≤ 3; else removed). Copy / paste and undo clone steps, so chords ride along.
+- **Engine (🔴):** compile adds `st.notes` (MIDI, lowest first) and `track.poly`; the worklet's `chord()` triggers every note on the step's
+  sample. Acid (mono): a track with chords gets 3 more AcidCores (`v.more`, made in syncVoices, idle ones skipped in render), voice index
+  `vi` in the queue, each note at 1/√n. Pump synths (Coil / Orbit / Fold): all notes to the wasm voice (its own poly, no extra gain).
+  Rendered (Modal / Scanned): every note's buffer; ringing cap 6 → 12 and the oldest now fades out over 128 samples instead of a hard cut
+  (also for one-note tracks). CV: root only. MIDI: every note-on together, matching offs. `engine.hit(ti, deg, vel, chord)`; render.js
+  (Export) records every chord note (it recorded only `st.note` before).
+- **UI:** panel "Chord" picker (js/ui/chordui.js): None / Triad / 7th / Sus2 / Sus4 / Add 9 / Power / Octave from the scale (Chromatic:
+  Major / Minor / 7th / Maj7 / Min7 / Sus / Power / Octave; pentatonics: Triad / Power / Octave), plus the chord's name + notes; "Your own
+  notes" when hand-made. Shift-click in the melody lane adds / removes the note at that height (max 4; the last note stays). Grid cell:
+  chord name + a stripe of its notes' colours (css/chords.css). Melody lane moved to js/ui/melody.js (steps.js 613 → 536). One Undo each.
+- **Tested:** tests/chord-check.mjs (new, 42 checks, PORT env): Acid / Modal chord == the notes alone at 1/√3 sample-exact (before the
+  tanh clip), Coil E♭ / G present, onsets on the notes' sample, finite, CV root, migration, MIDI 3 ons / offs, Export, picker, Shift-click,
+  drag / arrows, preview, .spores round trip. Suite passes: engine, sounds, export, save, clipboard, note-preview, fx, scene-mute, cv,
+  cv-render, cv-ui, song-select, master, loop-song, audio, audio-song (4 tests' "v === 4" bumped to 5).
+- **Odd / not done:** a pump chord is louder than one note (no 1/√n there: the wasm mixes its voices). Acid chords are 4 separate
+  303s (each its own filter), not a paraphonic shared filter. Not heard by a person yet.
+
 ## 2026-11-27 — Song screen: pick several blocks, Copy / Paste / Duplicate (Claude, branch `q-songsel`, not pushed)
 - `js/ui/songselect.js` (new; hooks in song.js: the import, a paste bar, one `multi.draw()` line) + `css/songselect.css`. Shift-click picks a
   run from the anchor; right-click / Menu key / Shift+F10 on a block: Copy, Paste…, Duplicate (menu helpers `contextMenu` / `onMenu` now
@@ -1008,13 +1029,13 @@ the blocks, with move (start bar), trim and fades in More. Same input picker, la
   dark text ≥ 7:1 on 909; cream on charcoal with soft taupe lines on 808). A saved 'black' opens as 808, 'pastel' as 909
   (skin.js RENAMED and index.html's first-paint script).
 
-## Queued requests (2026-11-27, from the owner; 1-3, 5, 6 done, merged into dev; 4 next) — for the next session
+## Queued requests (2026-11-27, from the owner; all done: 1-3, 5, 6 merged into dev; 4 on branch q-chords)
 [DONE] 1. "Preview on click": clicking to add a note / drum step plays that sound; changing a note plays the new note. A File-menu
    setting "Preview on click", on by default (per computer, localStorage, like the skin). The worklet already has a 'hit'
    message (worklet.js msg t:'hit' {ti, note, vel, len}) used for auditioning: use it.
 [DONE] 2. Click-hold-drag on a note step moves it up / down chromatically (drag up = higher), previewing as it goes; one Undo step.
 [DONE] 3. A selected note step: ↑ / ↓ change it chromatically (Shift: octave?), previewing. (steps.js selectStep / stepedit.js nudgeNote.)
-4. A polyphonic synth track: up to 4-note chords per step. Data: a step gets notes [deg…] (≤4) instead of one deg; old
+4. (DONE 2026-11-27, branch q-chords) A polyphonic synth track: up to 4-note chords per step. Data: a step gets notes [deg…] (≤4) instead of one deg; old
    songs unchanged (bump v + migrate if the format changes). Engine: AcidCore is mono; the pump synths (Coil / Orbit / Fold)
    are already poly (PumpVoice), rendered engines play several bufs; MIDI / CV tracks: MIDI can send chords, CV cannot.
    UI: how to enter chords simply (e.g. a chord picker in the step panel: root + type, or tap several notes). 🔴 Claude.
