@@ -170,7 +170,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
     swingWrap);   // More only; down here so the header stays on one row on a laptop
 
   root.append(header, workspace, bottom);
-  mountFileMenu(fileWrap, {store, files});
+  mountFileMenu(fileWrap, {store, files, scene: () => state.scene});
   const panel = mountPanel(panelEl, {store, engine, state, rec, openSong});
 
   /* ---- actions ---- */
@@ -558,6 +558,7 @@ export function mountSteps(root, {store, engine, midi, files, openSong}){
   const clearLit = () => { lit.forEach(b => b.classList.remove('now')); lit = []; };
   return {
     togglePlay,
+    get scene(){ return state.scene; },
     playhead(m){
       clearLit();
       if (m.scene !== state.scene) return;   // a scene switch is waiting for the next bar

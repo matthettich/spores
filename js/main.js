@@ -10,6 +10,7 @@ import {createSaveFile, bindFileKeys} from './ui/savefile.js';
 import {gcClips} from './audiostore.js';
 import {clipIds} from './store.js';
 import {keepTake, keepSongTake} from './takes.js';
+import {openExport} from './ui/export.js';
 
 const store = createStore(undefined, {
   onSaveError: () => toast('This browser won’t keep the song (private window or full). Use File › Save to keep it in a file.'),
@@ -51,6 +52,8 @@ app.append(stepsEl, songEl);
 
 const files = createSaveFile({store});
 bindFileKeys(files);
+// File › Export… (also the desktop app's File menu): the scene on the Steps screen unless one is given
+files.exportAudio = scene => openExport({store, files, scene: scene || steps.scene});
 const steps = mountSteps(stepsEl, {store, engine, midi, files, openSong: () => show('song')});
 const song = mountSong(songEl, {store, engine, files, openSteps: () => show('steps')});
 

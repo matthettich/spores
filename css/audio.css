@@ -67,3 +67,15 @@
 .slane-vol { grid-template-columns: 70px minmax(0, 1fr) 44px var(--touch) var(--touch) auto; }
 .slane-more { display: flex; flex-direction: column; border-top: 1px solid var(--edge); margin-top: 6px; }
 .slane-more[hidden] { display: none; }
+
+/* File › Export… (js/ui/export.js) */
+.xprow { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: var(--touch); font-size: 13px; }
+.xprow[hidden] { display: none; }
+.xprow select, .xpname { min-width: 0; min-height: var(--touch); }
+.xprow .nudge { align-items: center; }
+.xprow .pval { min-width: 38px; text-align: center; font-size: 13px; }
+.xpdlg .seg { align-self: flex-start; }
+.xpprog { display: flex; flex-direction: column; gap: 6px; }
+.xpprog[hidden] { display: none; }
+.xpbar { height: 10px; border: 1px solid var(--edge); background: var(--panel-2); overflow: hidden; }
+.xpbar > div { height: 100%; width: 0; background: var(--audio); transition: width .15s linear; }

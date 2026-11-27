@@ -1,5 +1,5 @@
 /* js/ui/filebar.js: the File menu — Save, Save as…, Save a copy…, Open…, Open Recent (desktop app), New song,
- * Seeds link…, Skin…. The saving itself is in js/ui/savefile.js; each row shows its keyboard shortcut, muted.
+ * Export… (js/ui/export.js), Seeds link…, Skin…. The saving itself is in js/ui/savefile.js; each row shows its keyboard shortcut, muted.
  * Opening and New song ask first and go through store.replace / store.load, so Undo brings the old song back.
  */
 import {openSeedsLink} from './link.js';
@@ -10,7 +10,7 @@ const MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
 // 'S' / 'Shift+S' / 'O' → ⌘S / ⇧⌘S on a Mac, Ctrl+S / Ctrl+Shift+S elsewhere
 const keyText = k => MAC ? (k.startsWith('Shift+') ? '⇧' : '') + '⌘' + k.slice(-1) : 'Ctrl+' + k;
 
-export function mountFileMenu(host, {store, files}){
+export function mountFileMenu(host, {store, files, scene}){
   const menu = el('div', {class: 'menu', role: 'menu', hidden: true});
   const btn = el('button', {class: 'tb', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
     onclick: e => { e.stopPropagation(); menu.hidden ? open() : close(); }}, 'File ▾');
@@ -24,6 +24,7 @@ export function mountFileMenu(host, {store, files}){
   menu.append(item('Save', () => files.save(), 'S'), item('Save as…', () => files.saveAs(), 'Shift+S'),
     item('Save a copy…', () => files.saveCopy()), item('Open…', () => files.open(), 'O'));
   if (files.hasRecent) menu.append(recentBtn, recentBox);
+  if (files.exportAudio) menu.append(item('Export…', () => files.exportAudio(scene ? scene() : undefined)));
   menu.append(item('New song', () => files.startNew()), item('Seeds link…', () => openSeedsLink(store)), item('Skin…', openSkinDialog));
   host.append(btn, menu);
 

@@ -29,9 +29,10 @@ js/zip.js           tiny stored-zip writer / reader (crc32 from Thunder Plus)
 js/wav.js           WAV writer (32-bit float for takes, 16 / 24-bit PCM) and reader
 js/songmap.js       song bars ↔ blocks (song-length takes: where they play, and the Song screen's lane)
 js/audiostore.js    recorded takes' samples by clip id (IndexedDB + memory); takes.js puts a take into the song
+js/ui/export.js     File › Export…: Song / Scene × N / Stems, file name, progress + Cancel, Show in Finder (desktop)
 js/ui/savefile.js   Save, Save as…, Save a copy…, Open…, Open Recent (desktop); Ctrl/Cmd+S / Shift+S / O
 js/ui/filestate.js  the current file, unsaved-changes dot, remembered Chrome file handle; filetag.js shows it in the header
-desktop/files.js    the desktop app's file channels (+ path-allow.js: only files the person picked)
+desktop/files.js    the desktop app's file channels, export's out-pick / out-write / out-show (+ path-allow.js: only files the person picked)
 js/midi.js          Web MIDI ports, note out, clock out
 js/engine/          🔴 Claude only: clock worklet, voices, CV out
   engine.js           page side: AudioContext, compile(song) for the worklet, playhead + MIDI timing
@@ -46,6 +47,8 @@ js/engine/          🔴 Claude only: clock worklet, voices, CV out
   recorder.js         the input, level meter, Hear myself, latency test and record() (page side)
   fx.js               the track effects' table: names, groups, settings, value text, what goes to the wasm
   fxhost.js           the track effects in the worklet: up to 4 per track, two tfx.wasm instances (32 effects each)
+  render.js           Export's offline render (page side): song / scene / stems at 48 kHz in an OfflineAudioContext
+  bounce.js           Export inside the worklet: plays N steps, ends, lets the tails ring out, sends the audio (or stems) in chunks
   tfx.wasm            GENERATED: ...Thunder Plus' track-effects module, copied by tools/copy-fx.sh
 js/fxedit.js        add / remove / move / switch / set an effect, each one Undo step (for the Effects panel)
 js/ui/cv.js         a CV track's panel section, Tune CV… and Test outputs…
@@ -65,6 +68,16 @@ one; **Save a copy…** downloads a copy and leaves the song's file alone. **Ope
 The song's name and a dot while there are unsaved changes show in the page title and beside the app name. The dot is "the
 song differs from what was last saved", so undoing back to the saved state clears it. Chrome keeps the file handle (IndexedDB),
 the desktop app keeps the path and offers Open Recent and a Save / Don't save / Cancel box when closing with unsaved changes.
+
+## Export
+
+**File › Export…** (also the desktop app's File menu): **Song** = the arrangement once from the first block (a Loop-forever block
+plays its repeats once, the blocks after it follow), **Scene** = one scene × N (1–64; song-length takes are silent, as when a
+scene plays), **Stems** = a `.zip` with one WAV per drum / synth / audio track that makes a sound, plus the mix (MIDI, CV and
+muted tracks left out; Solo is ignored so the stems add up to the mix; a stem is the track after its effects and volume,
+before the master clip). Always 48 kHz, 24-bit stereo WAV. Rendered offline with the same worklet (identical to playing,
+faster than real time), with the effects' tails: the file ends where the sound falls below −90 dB, at most 10 s after the end.
+It asks where to save first (desktop: the system dialog, then Show in Finder; Chrome: the file picker; else a download).
 
 ## Data (one song)
 
